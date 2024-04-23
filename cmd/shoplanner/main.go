@@ -13,9 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	businessProducts "go-backend/internal/business/product"
-	"go-backend/internal/db/product"
 	"go-backend/internal/handler"
+	businessProducts "go-backend/internal/product"
 	"go-backend/pkg/middleware"
 )
 
@@ -39,7 +38,7 @@ func main() {
 
 	products := dbClient.Database("shoplanner").Collection("products")
 
-	productRepo := product.NewRepo(products)
+	productRepo := businessProducts.NewRepo(products)
 
 	productService := businessProducts.NewService(productRepo)
 
