@@ -11,7 +11,7 @@ import (
 
 type Favorites struct {
 	UserID   uuid.UUID
-	Products []product.ProductResponse
+	Products []product.Response
 }
 
 type Service struct {
@@ -22,10 +22,10 @@ func NewService(col *mongo.Collection) *Service {
 	return &Service{col: col}
 }
 
-func (s *Service) Add(ctx context.Context, userID uuid.UUID, model product.ProductResponse) error {
+func (s *Service) Add(ctx context.Context, userID uuid.UUID, productID uuid.UUID) error {
 }
 
-func (s *Service) AddList(userID uuid.UUID, models []product.ProductResponse) error {
+func (s *Service) AddList(userID uuid.UUID, models []product.Response) error {
 	panic("Not implemented")
 }
 

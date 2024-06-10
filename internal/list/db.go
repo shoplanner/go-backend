@@ -67,5 +67,4 @@ func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (ProductListResponse, e
 	}
 
 	return list, res.Decode(&list)
-
 }

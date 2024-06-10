@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"go-backend/internal/handler"
+	"go-backend/internal/api"
 	businessProducts "go-backend/internal/product"
 	"go-backend/pkg/middleware"
 )

@@ -26,11 +26,11 @@ func (h *ProductHandler) InitRoutes(group *gin.RouterGroup) {
 //
 // @Tags		Product
 // @Accept		json
-// @Param		product	body	models.ProductRequest	true	"product to create"
+// @Param		product	body	models.Request	true	"product to create"
 // @Produce	json
 // @Router		/product [post]
 func (h *ProductHandler) Create(c *gin.Context) {
-	var model ProductRequest
+	var model Request
 	if err := c.ShouldBindJSON(&model); err != nil {
 		c.String(http.StatusBadRequest, "Can't decode request")
 		return
@@ -49,11 +49,11 @@ func (h *ProductHandler) Create(c *gin.Context) {
 //
 // @Tags		Product
 // @Param		id		path	string					true	"product id"
-// @Param		product	body	models.ProductRequest	true	"product to update"
+// @Param		product	body	models.Request	true	"product to update"
 // @Produce	json
 // @Router		/product/{id} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
-	var model ProductRequest
+	var model Request
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "ID has incorrect format")

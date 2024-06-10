@@ -36,20 +36,16 @@ func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) 
 	return list, s.repo.Create(ctx, list)
 }
 
-func (s *Service) Update(list ProductListRequest) (ProductListResponse, error) {
+func (s *Service) Update(ctx context.Context, list ProductListRequest) (ProductListResponse, error) {
 	model := ProductListResponse{
 		ProductListRequest: list,
-		OwnerID:            uuid.UUID{},
-		ViewerIDList:       nil,
-		CreatedAt:          time.Time{},
 		UpdatedAt:          time.Now(),
 	}
-	return
+	return s.repo.Update(ctx, model)
 }
 
 func (s *Service) Delete(id uuid.UUID) (ProductListResponse, error) {
 	panic("Not implemented")
-
 }
 
 func (s *Service) ID(id uuid.UUID) (ProductListResponse, error) {

@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	// ListStatusPlanning is a ListStatus of type Planning.
-	ListStatusPlanning ListStatus = iota
-	// ListStatusProcessing is a ListStatus of type Processing.
+	// ListStatusPlanning is a Status of type Planning.
+	ListStatusPlanning Status = iota
+	// ListStatusProcessing is a Status of type Processing.
 	ListStatusProcessing
-	// ListStatusArchived is a ListStatus of type Archived.
+	// ListStatusArchived is a Status of type Archived.
 	ListStatusArchived
 )
 
-var ErrInvalidListStatus = fmt.Errorf("not a valid ListStatus, try [%s]", strings.Join(_ListStatusNames, ", "))
+var ErrInvalidListStatus = fmt.Errorf("not a valid Status, try [%s]", strings.Join(_ListStatusNames, ", "))
 
 const _ListStatusName = "planningprocessingarchived"
 
@@ -30,64 +30,64 @@ var _ListStatusNames = []string{
 	_ListStatusName[18:26],
 }
 
-// ListStatusNames returns a list of possible string values of ListStatus.
+// ListStatusNames returns a list of possible string values of Status.
 func ListStatusNames() []string {
 	tmp := make([]string, len(_ListStatusNames))
 	copy(tmp, _ListStatusNames)
 	return tmp
 }
 
-// ListStatusValues returns a list of the values for ListStatus
-func ListStatusValues() []ListStatus {
-	return []ListStatus{
+// ListStatusValues returns a list of the values for Status
+func ListStatusValues() []Status {
+	return []Status{
 		ListStatusPlanning,
 		ListStatusProcessing,
 		ListStatusArchived,
 	}
 }
 
-var _ListStatusMap = map[ListStatus]string{
+var _ListStatusMap = map[Status]string{
 	ListStatusPlanning:   _ListStatusName[0:8],
 	ListStatusProcessing: _ListStatusName[8:18],
 	ListStatusArchived:   _ListStatusName[18:26],
 }
 
 // String implements the Stringer interface.
-func (x ListStatus) String() string {
+func (x Status) String() string {
 	if str, ok := _ListStatusMap[x]; ok {
 		return str
 	}
-	return fmt.Sprintf("ListStatus(%d)", x)
+	return fmt.Sprintf("Status(%d)", x)
 }
 
 // IsValid provides a quick way to determine if the typed value is
 // part of the allowed enumerated values
-func (x ListStatus) IsValid() bool {
+func (x Status) IsValid() bool {
 	_, ok := _ListStatusMap[x]
 	return ok
 }
 
-var _ListStatusValue = map[string]ListStatus{
+var _ListStatusValue = map[string]Status{
 	_ListStatusName[0:8]:   ListStatusPlanning,
 	_ListStatusName[8:18]:  ListStatusProcessing,
 	_ListStatusName[18:26]: ListStatusArchived,
 }
 
-// ParseListStatus attempts to convert a string to a ListStatus.
-func ParseListStatus(name string) (ListStatus, error) {
+// ParseListStatus attempts to convert a string to a Status.
+func ParseListStatus(name string) (Status, error) {
 	if x, ok := _ListStatusValue[name]; ok {
 		return x, nil
 	}
-	return ListStatus(0), fmt.Errorf("%s is %w", name, ErrInvalidListStatus)
+	return Status(0), fmt.Errorf("%s is %w", name, ErrInvalidListStatus)
 }
 
 // MarshalText implements the text marshaller method.
-func (x ListStatus) MarshalText() ([]byte, error) {
+func (x Status) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
 // UnmarshalText implements the text unmarshaller method.
-func (x *ListStatus) UnmarshalText(text []byte) error {
+func (x *Status) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseListStatus(name)
 	if err != nil {

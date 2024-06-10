@@ -14,14 +14,14 @@ import (
 type StateStatus int
 
 // ENUM(planning, processing, archived)
-type ListStatus int
+type Status int
 
 type ProductState struct {
-	ProductID uuid.UUID              `bson:"product_id" json:"product_id"`
-	Product   product.ProductRequest `bson:"product" json:"product"`
-	Count     *int                   `bson:"count" json:"count"`
-	FormIndex *int                   `bson:"form_index" json:"form_index"`
-	Status    StateStatus            `bson:"status" json:"status"`
+	ProductID uuid.UUID       `bson:"product_id" json:"product_id"`
+	Product   product.Request `bson:"product" json:"product"`
+	Count     *int            `bson:"count" json:"count"`
+	FormIndex *int            `bson:"form_index" json:"form_index"`
+	Status    StateStatus     `bson:"status" json:"status"`
 }
 
 type ProductListResponse struct {
@@ -36,6 +36,6 @@ type ProductListResponse struct {
 type ProductListRequest struct {
 	ID     uuid.UUID      `bson:"_id" json:"id"`
 	Name   string         `bson:"name" json:"name"`
-	Status ListStatus     `bson:"status" json:"status"`
+	Status Status         `bson:"status" json:"status"`
 	States []ProductState `bson:"states" json:"states"`
 }
