@@ -27,7 +27,7 @@ func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) 
 		ProductListRequest: ProductListRequest{
 			ID:     uuid.New(),
 			Name:   name,
-			Status: ListStatusPlanning,
+			Status: StatusPlanning,
 		},
 		OwnerID:   creatorID,
 		CreatedAt: time.Now(),

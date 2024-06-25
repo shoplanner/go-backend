@@ -15,7 +15,7 @@ type Repo struct {
 func (r *Repo) ID(ctx context.Context, id uuid.UUID) (ProductListResponse, error) {
 	var productList ProductListResponse
 
-	res := r.col.FindOne(ctx, bson.D{{"_id", id}})
+	res := r.col.FindOne(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
 		return productList, res.Err()
 	}
@@ -33,7 +33,7 @@ func (r *Repo) Create(ctx context.Context, request ProductListResponse) error {
 func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]ProductListResponse, error) {
 	var lists []ProductListResponse
 
-	res, err := r.col.Find(ctx, bson.D{{"user_id", userID}})
+	res, err := r.col.Find(ctx, bson.D{{Key: "user_id", Value: userID}})
 	if err != nil {
 		return nil, err
 	} else if res.Err() != nil {
@@ -44,13 +44,13 @@ func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]ProductListRespo
 }
 
 func (r *Repo) Update(ctx context.Context, request ProductListResponse) (ProductListResponse, error) {
-	res := r.col.FindOneAndUpdate(ctx, bson.D{{"_id", request.ID}},
-		bson.D{{"$set", bson.D{
-			{"updated_at", request.UpdatedAt},
-			{"name", request.Name},
-			{"states", request.States},
-			{"status", request.Status},
-			{"view_id_list", request.ViewerIDList},
+	res := r.col.FindOneAndUpdate(ctx, bson.D{{Key: "_id", Value: request.ID}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "updated_at", Value: request.UpdatedAt},
+			{Key: "name", Value: request.Name},
+			{Key: "states", Value: request.States},
+			{Key: "status", Value: request.Status},
+			{Key: "view_id_list", Value: request.ViewerIDList},
 		}}})
 	if res.Err() != nil {
 		return request, res.Err()
@@ -61,7 +61,7 @@ func (r *Repo) Update(ctx context.Context, request ProductListResponse) (Product
 func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (ProductListResponse, error) {
 	var list ProductListResponse
 
-	res := r.col.FindOneAndDelete(ctx, bson.D{{"_id", id}})
+	res := r.col.FindOneAndDelete(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
 		return list, res.Err()
 	}
