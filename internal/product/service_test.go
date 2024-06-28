@@ -11,6 +11,10 @@ func TestProductService(t *testing.T) {
 	suite.Run(t, new(ProductServiceSuite))
 }
 
+type ProductServiceSuite struct {
+	suite.Suite
+}
+
 func (s *ProductServiceSuite) TestKEK() {
 	cases := []struct {
 		name string
@@ -41,8 +45,6 @@ func TestSmth(t *testing.T) {
 
 	t.Run("newname", func(t *testing.T) {
 	})
-
-
 }
 
 func (s *ProductServiceSuite) TestLOL() {
@@ -58,8 +60,4 @@ func (s *ProductServiceSuite) TestLOL() {
 			s.Fail("yes")
 		}
 	})
-}
-
-type ProductServiceSuite struct {
-	suite.Suite
 }
