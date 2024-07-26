@@ -4,6 +4,7 @@ import (
 	"crypto"
 
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type User struct {
@@ -13,6 +14,7 @@ type User struct {
 }
 
 type Service struct {
+	col *mongo.Collection
 }
 
 func NewService() *Service {

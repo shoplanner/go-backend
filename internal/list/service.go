@@ -12,6 +12,7 @@ type repo interface {
 	Create(context.Context, ProductListResponse) error
 	UserID(context.Context, uuid.UUID) ([]ProductListResponse, error)
 	Update(context.Context, ProductListResponse) (ProductListResponse, error)
+	Delete(context.Context, uuid.UUID) error
 }
 
 type Service struct {
@@ -44,10 +45,10 @@ func (s *Service) Update(ctx context.Context, list ProductListRequest) (ProductL
 	return s.repo.Update(ctx, model)
 }
 
-func (s *Service) Delete(id uuid.UUID) (ProductListResponse, error) {
-	panic("Not implemented")
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	return s.repo.Delete(ctx, id)
 }
 
-func (s *Service) ID(id uuid.UUID) (ProductListResponse, error) {
-	panic("Not implemented")
+func (s *Service) ID(ctx context.Context, id uuid.UUID) (ProductListResponse, error) {
+	return s.repo.ID(ctx, id)
 }
