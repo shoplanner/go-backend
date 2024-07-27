@@ -1,18 +1,20 @@
-package product
-
+package handlers
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"go-backend/internal/product"
+	"go-backend/internal/product/models"
 )
 
 type ProductHandler struct {
-	service *Service
+	service *product.Service
 }
 
-func NewProductController(service *Service) *ProductHandler {
+func NewProductController(service *product.Service) *ProductHandler {
 	return &ProductHandler{service: service}
 }
 
@@ -31,7 +33,7 @@ func (h *ProductHandler) InitRoutes(group *gin.RouterGroup) {
 // @Produce	json
 // @Router		/product [post]
 func (h *ProductHandler) Create(c *gin.Context) {
-	var model Request
+	var model models.Request
 	if err := c.ShouldBindJSON(&model); err != nil {
 		c.String(http.StatusBadRequest, "Can't decode request")
 		return
@@ -54,7 +56,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @Produce	json
 // @Router		/product/{id} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
-	var model Request
+	var model models.Request
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "ID has incorrect format")

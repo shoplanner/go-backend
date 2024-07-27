@@ -1,4 +1,4 @@
-package favorites
+package repo
 
 import (
 	"context"

@@ -7,14 +7,16 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"go-backend/internal/product/models"
 )
 
 type repo interface {
-	ID(context.Context, uuid.UUID) (Response, error)
-	IDList(context.Context, []uuid.UUID) ([]Response, error)
-	Create(context.Context, Response) error
-	Delete(context.Context, uuid.UUID) (Response, error)
-	Update(context.Context, Response) (Response, error)
+	ID(context.Context, uuid.UUID) (models.Response, error)
+	IDList(context.Context, []uuid.UUID) ([]models.Response, error)
+	Create(context.Context, models.Response) error
+	Delete(context.Context, uuid.UUID) (models.Response, error)
+	Update(context.Context, models.Response) (models.Response, error)
 }
 
 type Service struct {
@@ -24,28 +26,27 @@ type Service struct {
 }
 
 func NewService(repo repo) *Service {
-	return &Service{repo: repo}
+	return &Service{repo: repo, log: *zap.NewNop().Sugar().Named("")}
 }
 
-func (s *Service) ID(ctx context.Context, id uuid.UUID) (Response, error) {
+func (s *Service) ID(ctx context.Context, id uuid.UUID) (models.Response, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	return s.repo.ID(ctx, id)
 }
-
-func (s *Service) IDList(ctx context.Context, ids []uuid.UUID) ([]Response, error) {
+func (s *Service) IDList(ctx context.Context, ids []uuid.UUID) ([]models.Response, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	return s.repo.IDList(ctx, ids)
 }
 
-func (s *Service) Create(ctx context.Context, product Request) (Response, error) {
+func (s *Service) Create(ctx context.Context, product models.Request) (models.Response, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	full := Response{
+	full := models.Response{
 		Request:   product,
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -55,7 +56,7 @@ func (s *Service) Create(ctx context.Context, product Request) (Response, error)
 	return full, s.repo.Create(ctx, full)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, product Request) (Response, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, product models.Request) (models.Response, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

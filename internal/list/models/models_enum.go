@@ -4,7 +4,7 @@
 // Build Date:
 // Built By:
 
-package list
+package models
 
 import (
 	"fmt"

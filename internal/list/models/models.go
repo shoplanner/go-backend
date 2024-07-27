@@ -1,4 +1,4 @@
-package list
+package models
 
 import (
 	"time"
@@ -10,10 +10,10 @@ import (
 
 //go:generate go-enum --marshal --names --values
 
-// ENUM(waiting, missing, taken, replaced)
+// ENUM(waiting, missing, taken, replaced).
 type StateStatus int
 
-// ENUM(planning, processing, archived)
+// ENUM(planning, processing, archived).
 type Status int
 
 type ProductState struct {

@@ -1,4 +1,4 @@
-package list
+package repo
 
 import (
 	"context"
@@ -6,14 +6,16 @@ import (
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"go-backend/internal/list/models"
 )
 
 type Repo struct {
 	col *mongo.Collection
 }
 
-func (r *Repo) ID(ctx context.Context, id uuid.UUID) (ProductListResponse, error) {
-	var productList ProductListResponse
+func (r *Repo) ID(ctx context.Context, id uuid.UUID) (models.ProductListResponse, error) {
+	var productList models.ProductListResponse
 
 	res := r.col.FindOne(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
@@ -25,13 +27,13 @@ func (r *Repo) ID(ctx context.Context, id uuid.UUID) (ProductListResponse, error
 	return productList, nil
 }
 
-func (r *Repo) Create(ctx context.Context, request ProductListResponse) error {
+func (r *Repo) Create(ctx context.Context, request models.ProductListResponse) error {
 	_, err := r.col.InsertOne(ctx, request)
 	return err
 }
 
-func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]ProductListResponse, error) {
-	var lists []ProductListResponse
+func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]models.ProductListResponse, error) {
+	var lists []models.ProductListResponse
 
 	res, err := r.col.Find(ctx, bson.D{{Key: "user_id", Value: userID}})
 	if err != nil {
@@ -43,7 +45,7 @@ func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]ProductListRespo
 	return lists, res.Decode(&lists)
 }
 
-func (r *Repo) Update(ctx context.Context, request ProductListResponse) (ProductListResponse, error) {
+func (r *Repo) Update(ctx context.Context, request models.ProductListResponse) (models.ProductListResponse, error) {
 	res := r.col.FindOneAndUpdate(ctx, bson.D{{Key: "_id", Value: request.ID}},
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "updated_at", Value: request.UpdatedAt},
@@ -58,8 +60,8 @@ func (r *Repo) Update(ctx context.Context, request ProductListResponse) (Product
 	return request, res.Decode(&request)
 }
 
-func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (ProductListResponse, error) {
-	var list ProductListResponse
+func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (models.ProductListResponse, error) {
+	var list models.ProductListResponse
 
 	res := r.col.FindOneAndDelete(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
