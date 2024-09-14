@@ -17,6 +17,7 @@ type repo interface {
 	Create(context.Context, models.Response) error
 	Delete(context.Context, uuid.UUID) (models.Response, error)
 	Update(context.Context, models.Response) (models.Response, error)
+	IsExist(context.Context, uuid.UUID) (bool, error)
 }
 
 type Service struct {
@@ -35,6 +36,7 @@ func (s *Service) ID(ctx context.Context, id uuid.UUID) (models.Response, error)
 
 	return s.repo.ID(ctx, id)
 }
+
 func (s *Service) IDList(ctx context.Context, ids []uuid.UUID) ([]models.Response, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
@@ -69,4 +71,11 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, product models.Reque
 	model.UpdatedAt = time.Now()
 
 	return s.repo.Update(ctx, model)
+}
+
+func (s *Service) IsExist(ctx context.Context, id uuid.UUID) (bool, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	return s.repo.IsExist(ctx, id)
 }

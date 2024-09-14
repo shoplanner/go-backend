@@ -13,7 +13,7 @@ type Favorite struct {
 }
 
 type List struct {
-	UserID    uuid.UUID  `json:"user_id" bson:"user_id"`
+	UserID    uuid.UUID  `json:"user_id" bson:"_id"`
 	CreatedAt time.Time  `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at" bson:"updated_at"`
 	Products  []Favorite `json:"products" bson:"products"`

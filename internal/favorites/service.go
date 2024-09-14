@@ -2,30 +2,42 @@ package favorites
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 
+	"go-backend/internal/favorites/models"
+	"go-backend/internal/favorites/repo"
 	"go-backend/internal/product"
 )
 
-type Favorites struct {
-	UserID   uuid.UUID
-	Products []product.Response
-}
-
 type Service struct {
-	col *mongo.Collection
+	products *product.Service
+	repo     *repo.Repo
 }
 
-func NewService(col *mongo.Collection) *Service {
-	return &Service{col: col}
+func NewService() *Service {
+	return &Service{}
 }
 
-func (s *Service) Add(ctx context.Context, userID uuid.UUID, productID uuid.UUID) error {
+func (s *Service) AddProduct(ctx context.Context, userID uuid.UUID, productID uuid.UUID) error {
+	found, err := s.products.IsExist(ctx, productID)
+	if err != nil {
+		return err
+	}
+	if !found {
+	}
+
+	_, err = s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list models.List) (models.List, error) {
+		list.Products = append(list.Products, models.Favorite{
+			ProductID: productID,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		})
+	})
 }
 
-func (s *Service) AddList(userID uuid.UUID, models []product.Response) error {
+func (s *Service) AddList(userID uuid.UUID, models []models.List) error {
 	panic("Not implemented")
 }
 

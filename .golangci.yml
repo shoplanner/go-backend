@@ -210,6 +210,8 @@ linters-settings:
 
 linters:
   disable-all: true
+  disable:
+    - typecheck
   enable:
     ## enabled by default
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases

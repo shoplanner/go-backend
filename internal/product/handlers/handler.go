@@ -62,7 +62,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 		c.String(http.StatusBadRequest, "ID has incorrect format")
 		return
 	}
-	if err := c.ShouldBindJSON(&model); err != nil {
+	if decodeError := c.ShouldBindJSON(&model); decodeError != nil {
 		c.String(http.StatusBadRequest, "Can't decode request")
 		return
 	}

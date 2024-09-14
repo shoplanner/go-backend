@@ -14,21 +14,17 @@ type User struct {
 }
 
 type Service struct {
-	col *mongo.Collection
+	
 }
 
 func NewService() *Service {
-
 }
 
 func Create(name string, password string) (User, error) {
-
 }
 
 func Login(name, password string) error {
-
 }
 
 func Logout(id uuid.UUID) error {
-
 }

@@ -6,16 +6,22 @@ import (
 	"github.com/google/uuid"
 )
 
-type Response struct {
-	Request `bson:"inline"`
+type Product struct {
+	ProductInfo `bson:"inline"`
 
 	ID        uuid.UUID `json:"id" bson:"_id"`
 	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
 }
 
-type Request struct {
-	Name     string   `json:"name" bson:"name" binding:"required"`
-	Category string   `bson:"category" json:"category"`
-	Forms    []string `bson:"forms" json:"forms" binding:"dive,required"`
+type ProductInfo struct {
+	Name     Name     `json:"name" bson:"name" binding:"required"`
+	Category Category `bson:"category" json:"category"`
+	Forms    []Form   `bson:"forms" json:"forms" binding:"dive,required"`
 }
+
+type Category string
+
+type Form string
+
+type Name string

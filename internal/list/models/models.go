@@ -24,6 +24,11 @@ type ProductState struct {
 	Status    StateStatus     `bson:"status" json:"status"`
 }
 
+type ProductList struct {
+	ID      uuid.UUID `bson:"_id" json:"id"`
+	OwnerID uuid.UUID
+}
+
 type ProductListResponse struct {
 	ProductListRequest `bson:"inline"`
 
