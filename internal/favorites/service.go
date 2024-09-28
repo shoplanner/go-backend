@@ -2,6 +2,7 @@ package favorites
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,15 +21,9 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func (s *Service) AddProduct(ctx context.Context, userID uuid.UUID, productID uuid.UUID) error {
-	found, err := s.products.IsExist(ctx, productID)
-	if err != nil {
-		return err
-	}
-	if !found {
-	}
-
-	_, err = s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list models.List) (models.List, error) {
+func (s *Service) AddProducts(ctx context.Context, userID uuid.UUID, productIDS []uuid.UUID) error {
+	_, err := s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list models.List) (models.List, error) {
+		slices.Collect()
 		list.Products = append(list.Products, models.Favorite{
 			ProductID: productID,
 			CreatedAt: time.Now(),

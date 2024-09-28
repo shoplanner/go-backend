@@ -13,14 +13,13 @@ type User struct {
 	hash crypto.Hash
 }
 
-type Service struct {
-	
-}
+type Service struct{}
 
 func NewService() *Service {
+	return &Service{}
 }
 
-func Create(name string, password string) (User, error) {
+func Create(name, password string) (User, error) {
 }
 
 func Login(name, password string) error {

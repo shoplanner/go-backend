@@ -14,8 +14,8 @@ type Repo struct {
 	col *mongo.Collection
 }
 
-func (r *Repo) ID(ctx context.Context, id uuid.UUID) (models.ProductListResponse, error) {
-	var productList models.ProductListResponse
+func (r *Repo) ID(ctx context.Context, id uuid.UUID) (models.ProductList, error) {
+	var productList models.ProductList
 
 	res := r.col.FindOne(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
@@ -27,13 +27,13 @@ func (r *Repo) ID(ctx context.Context, id uuid.UUID) (models.ProductListResponse
 	return productList, nil
 }
 
-func (r *Repo) Create(ctx context.Context, request models.ProductListResponse) error {
+func (r *Repo) Create(ctx context.Context, request models.ProductList) error {
 	_, err := r.col.InsertOne(ctx, request)
 	return err
 }
 
-func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]models.ProductListResponse, error) {
-	var lists []models.ProductListResponse
+func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]models.ProductList, error) {
+	var lists []models.ProductList
 
 	res, err := r.col.Find(ctx, bson.D{{Key: "user_id", Value: userID}})
 	if err != nil {
@@ -45,7 +45,7 @@ func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]models.ProductLi
 	return lists, res.Decode(&lists)
 }
 
-func (r *Repo) Update(ctx context.Context, request models.ProductListResponse) (models.ProductListResponse, error) {
+func (r *Repo) Update(ctx context.Context, request models.ProductList) (models.ProductList, error) {
 	res := r.col.FindOneAndUpdate(ctx, bson.D{{Key: "_id", Value: request.ID}},
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "updated_at", Value: request.UpdatedAt},

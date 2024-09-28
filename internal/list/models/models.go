@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"go-backend/internal/product"
+	productModel "go-backend/internal/product/models"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -14,33 +14,26 @@ import (
 type StateStatus int
 
 // ENUM(planning, processing, archived).
-type Status int
+type ListStatus int
 
 type ProductState struct {
-	ProductID uuid.UUID       `bson:"product_id" json:"product_id"`
-	Product   product.Request `bson:"product" json:"product"`
-	Count     *int            `bson:"count" json:"count"`
-	FormIndex *int            `bson:"form_index" json:"form_index"`
-	Status    StateStatus     `bson:"status" json:"status"`
+	ProductID uuid.UUID            `bson:"product_id" json:"product_id"`
+	Product   productModel.Product `bson:"product" json:"product"`
+	Count     *int                 `bson:"count" json:"count"`
+	FormIndex *int                 `bson:"form_index" json:"form_index"`
+	Status    StateStatus          `bson:"status" json:"status"`
 }
 
 type ProductList struct {
-	ID      uuid.UUID `bson:"_id" json:"id"`
-	OwnerID uuid.UUID
+	ProductListMutable `bson:"inline"`
+
+	ID        uuid.UUID `bson:"_id" json:"id"`
+	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
 }
 
-type ProductListResponse struct {
-	ProductListRequest `bson:"inline"`
-
-	OwnerID      uuid.UUID   `bson:"user_id" json:"-"`
-	ViewerIDList []uuid.UUID `bson:"view_id_list" json:"-"`
-	CreatedAt    time.Time   `bson:"created_at" json:"created_at"`
-	UpdatedAt    time.Time   `bson:"updated_at" json:"updated_at"`
-}
-
-type ProductListRequest struct {
-	ID     uuid.UUID      `bson:"_id" json:"id"`
-	Name   string         `bson:"name" json:"name"`
-	Status Status         `bson:"status" json:"status"`
-	States []ProductState `bson:"states" json:"states"`
+type ProductListMutable struct {
+	States  []ProductState `bson:"states" json:"states" binding:"dive"`
+	Status  ListStatus     `bson:"status" json:"status"`
+	OwnerID uuid.UUID      `bson:"owner_id" json:"owner_id"`
 }

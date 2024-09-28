@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-
-	"go-backend/internal/product/models"
 )
 
 type repo interface {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
@@ -29,11 +30,13 @@ type Service struct {
 	users     userService
 	repo      repo
 	log       *zerolog.Logger
-	validator *validate.Validator
+	validator *validator.Validate
 }
 
 func NewService() *Service {
-	return &Service{}
+	s := &Service{validator: validator.New()}
+	s.validator.RegisterValidation("user_id_valid", s.checkUserExist)
+	return s
 }
 
 func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []productModel.Category) (models.ShopMap, error) {
@@ -56,13 +59,23 @@ func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []pr
 	return newShopMap, nil
 }
 
-func (s *Service) AddViewer(ctx context.Context, mapID uuid.UUID, viewerID uuid.UUID) (models.ShopMap, error) {
-	var shopMap models.ShopMap
+func (s *Service) AddViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs []uuid.UUID) (models.ShopMap, error) {
+	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm models.ShopMap) (models.ShopMap, error) {
+		sm.ViewersID = append(sm.ViewersID, viewerIDs...)
 
-	err := s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm models.ShopMap) (models.ShopMap, error) {
-		sm.ViewersID = append(sm.ViewersID, viewerID)
+		if err := s.validateMap(sm); err != nil {
+			return sm, err
+		}
+
 		return sm, nil
 	})
+}
 
-	return sm, err
+func (s *Service) validateMap(ctx context.Context, shopMap models.ShopMap) error {
+	if err := s.validator.VarCtx(ctx, shopMap.Categories, "unique"); err != nil {
+		return err
+	}
+	if err := s.validator.VarCtx(ctx, shopMap.ViewersID, "unique"); err != nil {
+		return err
+	}
 }
