@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -48,6 +49,32 @@ func (r *Repo) Update(ctx context.Context, shopMap models.ShopMap) error {
 func (r *Repo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.col.DeleteOne(ctx, bson.M{"_id": id})
 	return err
+}
+
+func (r *Repo) GetAndUpdate(
+	ctx context.Context,
+	id uuid.UUID,
+	updateFunc func(context.Context, models.ShopMap) (models.ShopMap, error),
+) (models.ShopMap, error) {
+	session, err := r.col.Database().Client().StartSession()
+	if err != nil {
+		return models.ShopMap{}, fmt.Errorf("can't start mongodb session: %w", err)
+	}
+
+	result, err := session.WithTransaction(ctx, func(ctx mongo.SessionContext) (interface{}, error) {
+		shopMap, err := r.Get(ctx, id)
+		if err != nil {
+			return shopMap, err
+		}
+
+		updateMap, err := updateFunc(ctx, shopMap)
+		if err != nil {
+			return shopMap, err
+		}
+
+		return updateMap, r.Update(ctx, updateMap)
+	})
+	return result.(models.ShopMap), err
 }
 
 func (r *Repo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.ShopMap, error) {

@@ -14,6 +14,11 @@ import (
 
 type repo interface {
 	Create(ctx context.Context, shopMap models.ShopMap) error
+	GetAndUpdate(
+		ctx context.Context,
+		id uuid.UUID,
+		updateFunc func(context.Context, models.ShopMap) (models.ShopMap, error),
+	) (models.ShopMap, error)
 }
 
 type userService interface {
@@ -28,7 +33,7 @@ type Service struct {
 }
 
 func NewService() *Service {
-	return nil
+	return &Service{}
 }
 
 func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []productModel.Category) (models.ShopMap, error) {
@@ -51,5 +56,13 @@ func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []pr
 	return newShopMap, nil
 }
 
-func (s *Service) Update() {
+func (s *Service) AddViewer(ctx context.Context, mapID uuid.UUID, viewerID uuid.UUID) (models.ShopMap, error) {
+	var shopMap models.ShopMap
+
+	err := s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm models.ShopMap) (models.ShopMap, error) {
+		sm.ViewersID = append(sm.ViewersID, viewerID)
+		return sm, nil
+	})
+
+	return sm, err
 }

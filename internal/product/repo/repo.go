@@ -49,13 +49,7 @@ func (r *Repo) Create(ctx context.Context, product models.Product) error {
 
 func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (models.Product, error) {
 	var product models.Product
-
-	res := r.col.FindOneAndDelete(ctx, bson.D{{Key: "_id", Value: id}})
-	if res.Err() != nil {
-		return product, res.Err()
-	}
-
-	return product, res.Decode(&product)
+	return product, r.col.FindOneAndDelete(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&product)
 }
 
 func (r *Repo) Update(ctx context.Context, product models.Product) (models.Product, error) {
