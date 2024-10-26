@@ -2,7 +2,9 @@ package shopmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -35,7 +37,7 @@ type Service struct {
 
 func NewService() *Service {
 	s := &Service{validator: validator.New()}
-	s.validator.RegisterValidation("user_id_valid", s.checkUserExist)
+	s.initValidator()
 	return s
 }
 
@@ -63,7 +65,7 @@ func (s *Service) AddViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs 
 	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm models.ShopMap) (models.ShopMap, error) {
 		sm.ViewersID = append(sm.ViewersID, viewerIDs...)
 
-		if err := s.validateMap(sm); err != nil {
+		if err := s.validator.StructCtx(ctx, sm); err != nil {
 			return sm, err
 		}
 
@@ -71,11 +73,29 @@ func (s *Service) AddViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs 
 	})
 }
 
-func (s *Service) validateMap(ctx context.Context, shopMap models.ShopMap) error {
-	if err := s.validator.VarCtx(ctx, shopMap.Categories, "unique"); err != nil {
-		return err
-	}
-	if err := s.validator.VarCtx(ctx, shopMap.ViewersID, "unique"); err != nil {
-		return err
-	}
+func (s *Service) RemoveViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs []uuid.UUID) (models.ShopMap, error) {
+	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap models.ShopMap) (models.ShopMap, error) {
+		var errs []error
+		toDelete := make(map[uuid.UUID]struct{}, len(viewerIDs))
+		for _, viewer := range viewerIDs {
+			toDelete[viewer] = struct{}{}
+		}
+
+		for _, viewerID := range shopMap.ViewersID {
+			if _, ok := toDelete[viewerID]; !ok {
+				errs = append(errs, fmt.Errorf("viewer with id %d do not exist", viewerID))
+			}
+		}
+
+		if len(errs) != 0 {
+			return shopMap, errors.Join(errs...)
+		}
+
+		shopMap.ViewersID = slices.DeleteFunc(shopMap.ViewersID, func(id uuid.UUID) bool {
+			_, deleted := toDelete[id]
+			return deleted
+		})
+
+		return shopMap, nil
+	})
 }

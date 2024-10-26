@@ -24,13 +24,3 @@ func NewShopMap() ShopMap {
 		UpdatedAt: time.Now(),
 	}
 }
-
-func (s *ShopMap) SetCategories(categories []productModevalidatel.Category) {
-	s.Categories = categories
-	s.UpdatedAt = time.Now()
-}
-
-func (s *ShopMap) SetViewersID(viewers []uuid.UUID) {
-	s.ViewersID = viewers
-	s.UpdatedAt = time.Now()
-}
