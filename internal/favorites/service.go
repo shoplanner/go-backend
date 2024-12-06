@@ -10,9 +10,24 @@ import (
 	"go-backend/internal/favorites/models"
 	"go-backend/internal/favorites/repo"
 	"go-backend/internal/product"
+	"go-backend/internal/user"
 )
 
+type productService interface {
+
+}
+
+type favoritesRepo interface {
+	Get(ctx context.Context, userID uuid.UUID)
+	Set(ctx context.Context, )
+}
+
+type userService interface {
+	GetUser(context.Context, uuid.UUID) (user.User, error)
+}
+
 type Service struct {
+	users *user.Service
 	products *product.Service
 	repo     *repo.Repo
 }
@@ -23,17 +38,18 @@ func NewService() *Service {
 
 func (s *Service) AddProducts(ctx context.Context, userID uuid.UUID, productIDS []uuid.UUID) error {
 	_, err := s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list models.List) (models.List, error) {
-		slices.Collect()
 		list.Products = append(list.Products, models.Favorite{
 			ProductID: productID,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		})
 	})
+	if err != nil {
+		return err
+	}
 }
 
 func (s *Service) AddList(userID uuid.UUID, models []models.List) error {
-	panic("Not implemented")
 }
 
 func (s *Service) Delete(userID uuid.UUID, productID uuid.UUID) error {

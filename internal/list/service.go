@@ -5,15 +5,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	"go-backend/internal/list/models"
 )
 
 type repo interface {
-	ID(context.Context, uuid.UUID) (models.ProductListResponse, error)
-	Create(context.Context, models.ProductListResponse) error
-	UserID(context.Context, uuid.UUID) ([]models.ProductListResponse, error)
-	Update(context.Context, models.ProductListResponse) (models.ProductListResponse, error)
+	ID(context.Context, uuid.UUID) (models.ProductList, error)
+	Create(context.Context, models.ProductList) error
+	UserID(context.Context, uuid.UUID) ([]models.ProductList, error)
+	Update(context.Context, models.ProductList) (models.ProductList, error)
 	Delete(context.Context, uuid.UUID) error
 }
 
@@ -25,22 +26,22 @@ func NewService(repo repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) (models.ProductListResponse, error) {
-	list := models.ProductListResponse{
-		ProductListRequest: models.ProductListRequest{
+func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) (models.ProductList, error) {
+	list := models.ProductList{
+		ProductListRequest: models.ProductList{
 			ID:     uuid.New(),
-			Name:   name,
-			Status: models.StatusPlanning,
+			Status: models.StateStatus,
 		},
 		OwnerID:   creatorID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+	lo.SomeBy()
 	return list, s.repo.Create(ctx, list)
 }
 
 func (s *Service) Update(ctx context.Context, list models.ProductListRequest) (models.ProductListResponse, error) {
-	model := models.ProductListResponse{
+	model := models.ProductList{
 		ProductListRequest: list,
 		UpdatedAt:          time.Now(),
 	}

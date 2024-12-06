@@ -45,23 +45,16 @@ func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) ([]models.ProductLi
 	return lists, res.Decode(&lists)
 }
 
-func (r *Repo) Update(ctx context.Context, request models.ProductList) (models.ProductList, error) {
-	res := r.col.FindOneAndUpdate(ctx, bson.D{{Key: "_id", Value: request.ID}},
-		bson.D{{Key: "$set", Value: bson.D{
-			{Key: "updated_at", Value: request.UpdatedAt},
-			{Key: "name", Value: request.Name},
-			{Key: "states", Value: request.States},
-			{Key: "status", Value: request.Status},
-			{Key: "view_id_list", Value: request.ViewerIDList},
-		}}})
+func (r *Repo) Update(ctx context.Context, productList models.ProductList) (models.ProductList, error) {
+	res := r.col.FindOneAndUpdate(ctx, bson.D{{Key: "_id", Value: productList.ID}}, productList)
 	if res.Err() != nil {
-		return request, res.Err()
+		return productList, res.Err()
 	}
-	return request, res.Decode(&request)
+	return productList, res.Decode(&productList)
 }
 
-func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (models.ProductListResponse, error) {
-	var list models.ProductListResponse
+func (r *Repo) Delete(ctx context.Context, id uuid.UUID) (models.ProductList, error) {
+	var list models.ProductList
 
 	res := r.col.FindOneAndDelete(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {

@@ -25,14 +25,14 @@ type ProductState struct {
 }
 
 type ProductList struct {
-	ProductListMutable `bson:"inline"`
+	ProductListOptions `bson:"inline"`
 
 	ID        uuid.UUID `bson:"_id" json:"id"`
 	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
 	CreatedAt time.Time `bson:"created_at" json:"created_at"`
 }
 
-type ProductListMutable struct {
+type ProductListOptions struct {
 	States  []ProductState `bson:"states" json:"states" binding:"dive"`
 	Status  ListStatus     `bson:"status" json:"status"`
 	OwnerID uuid.UUID      `bson:"owner_id" json:"owner_id"`
