@@ -1,4 +1,4 @@
-package shopmap
+package service
 
 import (
 	"context"

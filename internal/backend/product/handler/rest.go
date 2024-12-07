@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"net/http"
@@ -18,7 +18,9 @@ func NewProductController(service *service.Service) *ProductHandler {
 	return &ProductHandler{service: service}
 }
 
-func (h *ProductHandler) InitRoutes(group *gin.RouterGroup) {
+func (h *ProductHandler) InitRoutes(r *gin.Engine) {
+	group := r.Group("product")
+
 	group.GET("/:id", h.Get)
 	group.PUT("/:id", h.Update)
 	group.POST("/", h.Create)

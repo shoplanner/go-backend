@@ -6,8 +6,6 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "go-backend/docs"
-
-	"go-backend/internal/product"
 )
 
 func Init(r *gin.Engine, productService *product.Service) {
@@ -15,6 +13,5 @@ func Init(r *gin.Engine, productService *product.Service) {
 
 	products := product.NewProductController(productService)
 
-	productGroup := r.Group("product")
-	products.InitRoutes(productGroup)
+	products.InitRoutes(r)
 }

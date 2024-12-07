@@ -1,8 +1,7 @@
-package favorites
+package service
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,9 +12,7 @@ import (
 	"go-backend/internal/user"
 )
 
-type productService interface {
-
-}
+type productService interface{}
 
 type favoritesRepo interface {
 	Get(ctx context.Context, userID uuid.UUID)
@@ -28,7 +25,7 @@ type userService interface {
 }
 
 type Service struct {
-	users  userService
+	users    userService
 	products *product.Service
 	repo     *repo.Repo
 }
