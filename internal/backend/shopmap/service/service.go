@@ -5,24 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
+	"go-backend/internal/backend/user"
+	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/ph"
 )
 
 type repo interface {
 	Create(ctx context.Context, shopMap shopmap.ShopMap) error
 	GetAndUpdate(
 		ctx context.Context,
-		id uuid.UUID,
+		id id.ID[shopmap.ShopMap],
 		updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
 	) (shopmap.ShopMap, error)
+	Delete(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
 }
 
 type userService interface {
@@ -42,47 +46,50 @@ func NewService() *Service {
 	return s
 }
 
-func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []product.Category) (shopmap.ShopMap, error) {
+func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], categories []product.Category) (shopmap.ShopMap, error) {
 	newShopMap := shopmap.ShopMap{
-		ID:         id.NewID[shopmap.ShopMap](),
-		OwnerID:    id.ID[user.User](id.NewID[u]()),
-		Categories: categories,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		ShopMapConfig: shopmap.ShopMapConfig{
+			Categories:   categories,
+			ViewerIDList: nil,
+		},
+		ID:        id.NewID[shopmap.ShopMap](),
+		OwnerID:   ownerID,
+		CreatedAt: date.NewCreateDate[shopmap.ShopMap](),
+		UpdatedAt: date.NewUpdateDate[shopmap.ShopMap](),
 	}
 
-	if err := s.users.IsExists(ctx, ownerID); err != nil {
-		return models.ShopMap{}, fmt.Errorf("user service returns an error: %w", err)
+	if err := s.validate(ctx, newShopMap); err != nil {
+		return shopmap.ShopMap{}, err
 	}
 
-	if err := s.repo.Create(ctx, newShopMap); err != nil {
-		return models.ShopMap{}, err
-	}
+	s.repo.Create(ctx, newShopMap)
 
 	return newShopMap, nil
 }
 
-func (s *Service) AddViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs []uuid.UUID) (models.ShopMap, error) {
-	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm models.ShopMap) (models.ShopMap, error) {
-		sm.ViewersID = append(sm.ViewersID, viewerIDs...)
+func (s *Service) AddViewerList(ctx context.Context, mapID id.ID[shopmap.ShopMap], viewerIDs []id.ID[user.User]) (shopmap.ShopMap, error) {
+	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		shopMap.ViewerIDList = append(shopMap.ViewerIDList, viewerIDs...)
 
-		if err := s.validator.StructCtx(ctx, sm); err != nil {
-			return sm, err
+		if err := s.validate(ctx, shopMap); err != nil {
+			return shopMap, err
 		}
 
-		return sm, nil
+		return shopMap, nil
 	})
 }
 
-func (s *Service) RemoveViewerList(ctx context.Context, mapID uuid.UUID, viewerIDs []uuid.UUID) (models.ShopMap, error) {
-	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap models.ShopMap) (models.ShopMap, error) {
+func (s *Service) RemoveViewerList(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	viewerIDs []id.ID[user.User],
+) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		var errs []error
-		toDelete := make(map[uuid.UUID]struct{}, len(viewerIDs))
-		for _, viewer := range viewerIDs {
-			toDelete[viewer] = struct{}{}
-		}
 
-		for _, viewerID := range shopMap.ViewersID {
+		toDelete := lo.SliceToMap(viewerIDs, ph.EmptyStruct)
+
+		for _, viewerID := range shopMap.ViewerIDList {
 			if _, ok := toDelete[viewerID]; !ok {
 				errs = append(errs, fmt.Errorf("viewer with id %d do not exist", viewerID))
 			}
@@ -92,11 +99,50 @@ func (s *Service) RemoveViewerList(ctx context.Context, mapID uuid.UUID, viewerI
 			return shopMap, errors.Join(errs...)
 		}
 
-		shopMap.ViewersID = slices.DeleteFunc(shopMap.ViewersID, func(id uuid.UUID) bool {
-			_, deleted := toDelete[id]
-			return deleted
+		shopMap.ViewerIDList = slices.DeleteFunc(shopMap.ViewerIDList, func(viewerID id.ID[user.User]) bool {
+			return lo.HasKey(toDelete, viewerID)
 		})
 
-		return shopMap, nil
+		return shopMap, s.validate(ctx, shopMap)
 	})
+}
+
+func (s *Service) DeleteMap(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
+	return s.repoDelete(ctx, mapID)
+}
+
+func (s *Service) UpdateMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], cfg shopmap.ShopMapConfig) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		shopMap.ShopMapConfig = cfg
+		return shopMap, s.validate(ctx, shopMap)
+	})
+}
+
+func (s *Service) repoCreate(ctx context.Context, shopMap shopmap.ShopMap) error {
+	err := s.repo.Create(ctx, shopMap)
+	if err != nil {
+		return fmt.Errorf("can't create new shop map: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) repoDelete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
+	shopMap, err := s.repo.Delete(ctx, mapID)
+	if err != nil {
+		return shopMap, fmt.Errorf("can't delete shop map %s: %w", mapID.String(), err)
+	}
+	return shopMap, nil
+}
+
+func (s *Service) repoGetAndUpdate(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
+) (shopmap.ShopMap, error) {
+	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, updateFunc)
+	if err != nil {
+		return shopMap, fmt.Errorf("shop map service: can't update shop map %s: %w", mapID, err)
+	}
+	return shopMap, nil
 }

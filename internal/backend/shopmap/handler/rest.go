@@ -1,11 +1,17 @@
 package handler
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
 
-type Handler struct{}
+	"go-backend/internal/backend/shopmap/service"
+)
 
-func New(r *gin.Engine) *Handler {
-	h := Handler{}
+type Handler struct {
+	service *service.Service
+}
+
+func New(r *gin.Engine, service *service.Service) *Handler {
+	h := Handler{service: service}
 
 	group := r.Group("/map")
 
@@ -22,6 +28,7 @@ func New(r *gin.Engine) *Handler {
 }
 
 func (h *Handler) CreateMap(ctx *gin.Context) {
+	h.service.Create(ctx)
 }
 
 func (h *Handler) GetByID(ctx *gin.Context) {

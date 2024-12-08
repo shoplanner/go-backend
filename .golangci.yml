@@ -173,6 +173,7 @@ linters-settings:
     # Default: false
     require-specific: true
 
+
   perfsprint:
     # Optimizes into strings concatenation.
     # Default: true

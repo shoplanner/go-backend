@@ -2,10 +2,21 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+
+	"go-backend/internal/backend/shopmap"
 )
+
+func (s *Service) validate(ctx context.Context, shopMap shopmap.ShopMap) error {
+	if err := s.validator.StructCtx(ctx, shopMap); err != nil {
+		return fmt.Errorf("validation error: %w", err)
+	}
+
+	return nil
+}
 
 func (s *Service) initValidator() {
 	s.validator.RegisterValidationCtx("user_id_valid", s.checkUserExist)
