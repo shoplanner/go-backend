@@ -1,11 +1,15 @@
 package shopmap
 
 import (
+	"errors"
+
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 )
+
+var ErrShopMapService = errors.New("shop map service")
 
 type ShopMap struct {
 	ShopMapConfig `bson:"inline"`
@@ -17,6 +21,6 @@ type ShopMap struct {
 }
 
 type ShopMapConfig struct {
-	Categories []product.Category `validate:"dive,unique" json:"categories" bson:"categories"`
-	ViewersID  []id.ID[user.User] `validate:"unique,dive,user_id_exist" json:"viewers_id" bson:"viewersId"`
+	CategoryList []product.Category `validate:"dive,unique" json:"categories" bson:"categories"`
+	ViewerIDList []id.ID[user.User] `validate:"unique,dive,user_id_exist" json:"viewers_id" bson:"viewersId"`
 }
