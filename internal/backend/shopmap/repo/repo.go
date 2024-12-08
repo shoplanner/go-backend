@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"go-backend/internal/shopmap/models"
+	"go-backend/internal/backend/shopmap"
 )
 
 type Repo struct {
@@ -21,13 +21,13 @@ func New(c *mongo.Collection) *Repo {
 	}
 }
 
-func (r *Repo) Get(ctx context.Context, id uuid.UUID) (models.ShopMap, error) {
-	var shopMap models.ShopMap
+func (r *Repo) Get(ctx context.Context, id uuid.UUID) (shopmap.ShopMap, error) {
+	var shopMap shopmap.ShopMap
 	return shopMap, r.col.FindOne(ctx, bson.M{"_id": id}).Decode(&shopMap)
 }
 
-func (r *Repo) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]models.ShopMap, error) {
-	var shopMaps []models.ShopMap
+func (r *Repo) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]shopmap.ShopMap, error) {
+	var shopMaps []shopmap.ShopMap
 	cur, err := r.col.Find(ctx, bson.M{"owner_id": ownerID})
 	if err != nil {
 		return shopMaps, err
@@ -36,12 +36,12 @@ func (r *Repo) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]models.Sh
 	return shopMaps, cur.All(ctx, &shopMaps)
 }
 
-func (r *Repo) Create(ctx context.Context, shopMap models.ShopMap) error {
+func (r *Repo) Create(ctx context.Context, shopMap shopmap.ShopMap) error {
 	_, err := r.col.InsertOne(ctx, shopMap)
 	return err
 }
 
-func (r *Repo) Update(ctx context.Context, shopMap models.ShopMap) error {
+func (r *Repo) Update(ctx context.Context, shopMap shopmap.ShopMap) error {
 	_, err := r.col.UpdateOne(ctx, bson.M{"_id": shopMap.ID}, shopMap)
 	return err
 }
@@ -54,11 +54,11 @@ func (r *Repo) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *Repo) GetAndUpdate(
 	ctx context.Context,
 	id uuid.UUID,
-	updateFunc func(context.Context, models.ShopMap) (models.ShopMap, error),
-) (models.ShopMap, error) {
+	updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
+) (shopmap.ShopMap, error) {
 	session, err := r.col.Database().Client().StartSession()
 	if err != nil {
-		return models.ShopMap{}, fmt.Errorf("can't start mongodb session: %w", err)
+		return shopmap.ShopMap{}, fmt.Errorf("can't start mongodb session: %w", err)
 	}
 
 	result, err := session.WithTransaction(ctx, func(ctx mongo.SessionContext) (interface{}, error) {
@@ -74,11 +74,11 @@ func (r *Repo) GetAndUpdate(
 
 		return updateMap, r.Update(ctx, updateMap)
 	})
-	return result.(models.ShopMap), err
+	return result.(shopmap.ShopMap), err
 }
 
-func (r *Repo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.ShopMap, error) {
-	var shopMaps []models.ShopMap
+func (r *Repo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]shopmap.ShopMap, error) {
+	var shopMaps []shopmap.ShopMap
 	cur, err := r.col.Find(
 		ctx,
 		bson.M{"owner_id": userID, "viewers_id": bson.M{"$in": userID}},

@@ -11,17 +11,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	productModel "go-backend/internal/product/models"
-	"go-backend/internal/shopmap/models"
+	"go-backend/internal/backend/product"
+	"go-backend/internal/backend/shopmap"
+	"go-backend/pkg/id"
 )
 
 type repo interface {
-	Create(ctx context.Context, shopMap models.ShopMap) error
+	Create(ctx context.Context, shopMap shopmap.ShopMap) error
 	GetAndUpdate(
 		ctx context.Context,
 		id uuid.UUID,
-		updateFunc func(context.Context, models.ShopMap) (models.ShopMap, error),
-	) (models.ShopMap, error)
+		updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
+	) (shopmap.ShopMap, error)
 }
 
 type userService interface {
@@ -41,10 +42,10 @@ func NewService() *Service {
 	return s
 }
 
-func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []productModel.Category) (models.ShopMap, error) {
-	newShopMap := models.ShopMap{
-		ID:         uuid.New(),
-		OwnerID:    ownerID,
+func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, categories []product.Category) (shopmap.ShopMap, error) {
+	newShopMap := shopmap.ShopMap{
+		ID:         id.NewID[shopmap.ShopMap](),
+		OwnerID:    id.ID[user.User](id.NewID[u]()),
 		Categories: categories,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
