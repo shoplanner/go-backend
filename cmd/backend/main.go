@@ -14,8 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"go-backend/internal/backend/api"
-	"go-backend/internal/backend/product"
-	"go-backend/pkg/middleware"
 )
 
 // @version	0.0.1

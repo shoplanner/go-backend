@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
-	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
@@ -48,16 +47,13 @@ func NewService() *Service {
 	return s
 }
 
-func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], categories []product.Category) (shopmap.ShopMap, error) {
+func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], cfg shopmap.ShopMapConfig) (shopmap.ShopMap, error) {
 	shopMap := shopmap.ShopMap{
-		ShopMapConfig: shopmap.ShopMapConfig{
-			CategoryList: categories,
-			ViewerIDList: nil,
-		},
-		ID:        id.NewID[shopmap.ShopMap](),
-		OwnerID:   ownerID,
-		CreatedAt: date.NewCreateDate[shopmap.ShopMap](),
-		UpdatedAt: date.NewUpdateDate[shopmap.ShopMap](),
+		ShopMapConfig: cfg,
+		ID:            id.NewID[shopmap.ShopMap](),
+		OwnerID:       ownerID,
+		CreatedAt:     date.NewCreateDate[shopmap.ShopMap](),
+		UpdatedAt:     date.NewUpdateDate[shopmap.ShopMap](),
 	}
 
 	if err := s.validate(ctx, shopMap); err != nil {
@@ -68,7 +64,7 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], categori
 }
 
 func (s *Service) AddViewerList(ctx context.Context, mapID id.ID[shopmap.ShopMap], viewerIDs []id.ID[user.User]) (shopmap.ShopMap, error) {
-	return s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		shopMap.ViewerIDList = append(shopMap.ViewerIDList, viewerIDs...)
 
 		if err := s.validate(ctx, shopMap); err != nil {
@@ -148,10 +144,18 @@ func (s *Service) repoGetAndUpdate(
 	mapID id.ID[shopmap.ShopMap],
 	updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
 ) (shopmap.ShopMap, error) {
-	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, updateFunc)
+	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm shopmap.ShopMap) (shopmap.ShopMap, error) {
+		sm, err := updateFunc(ctx, sm)
+		if err != nil {
+			return sm, err
+		}
+		sm.UpdatedAt.Update()
+		return sm, nil
+	})
 	if err != nil {
 		return shopMap, fmt.Errorf("shop map service: can't update shop map %s: %w", mapID, err)
 	}
+
 	return shopMap, nil
 }
 

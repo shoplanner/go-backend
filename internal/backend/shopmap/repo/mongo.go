@@ -16,9 +16,7 @@ type Repo struct {
 }
 
 func New(c *mongo.Collection) *Repo {
-	return &Repo{
-		col: c,
-	}
+	return &Repo{col: c}
 }
 
 func (r *Repo) Get(ctx context.Context, id uuid.UUID) (shopmap.ShopMap, error) {
@@ -26,23 +24,8 @@ func (r *Repo) Get(ctx context.Context, id uuid.UUID) (shopmap.ShopMap, error) {
 	return shopMap, r.col.FindOne(ctx, bson.M{"_id": id}).Decode(&shopMap)
 }
 
-func (r *Repo) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]shopmap.ShopMap, error) {
-	var shopMaps []shopmap.ShopMap
-	cur, err := r.col.Find(ctx, bson.M{"owner_id": ownerID})
-	if err != nil {
-		return shopMaps, err
-	}
-
-	return shopMaps, cur.All(ctx, &shopMaps)
-}
-
 func (r *Repo) Create(ctx context.Context, shopMap shopmap.ShopMap) error {
 	_, err := r.col.InsertOne(ctx, shopMap)
-	return err
-}
-
-func (r *Repo) Update(ctx context.Context, shopMap shopmap.ShopMap) error {
-	_, err := r.col.UpdateOne(ctx, bson.M{"_id": shopMap.ID}, shopMap)
 	return err
 }
 
