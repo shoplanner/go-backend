@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -11,6 +13,10 @@ import (
 )
 
 func (s *Service) validate(ctx context.Context, shopMap shopmap.ShopMap) error {
+	if slices.Contains(shopMap.ViewerIDList, shopMap.OwnerID) {
+		return errors.New("user-owner can't be viewer")
+	}
+
 	if err := s.validator.StructCtx(ctx, shopMap); err != nil {
 		return fmt.Errorf("validation error: %w", err)
 	}

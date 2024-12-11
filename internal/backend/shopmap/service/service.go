@@ -85,6 +85,10 @@ func (s *Service) RemoveViewerList(
 
 		toDelete := lo.SliceToMap(viewerIDs, ph.EmptyStruct)
 
+		if _, found := toDelete[shopMap.OwnerID]; found {
+			return shopMap, errors.New("can't delete owner")
+		}
+
 		for _, viewerID := range shopMap.ViewerIDList {
 			if _, ok := toDelete[viewerID]; !ok {
 				errs = append(errs, fmt.Errorf("viewer with id %d do not exist", viewerID))
@@ -162,7 +166,7 @@ func (s *Service) repoGetAndUpdate(
 func (s *Service) repoGet(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
 	shopMap, err := s.repo.GetByID(ctx, mapID)
 	if err != nil {
-		return shopMap, fmt.Errorf("%w: can't get shop map %s: %w", shopmap.ErrShopMapService, mapID, err)
+		return shopMap, wrapErr(fmt.Errorf("can't get shop map %s: %w", mapID, err))
 	}
 	return shopMap, nil
 }
@@ -170,12 +174,19 @@ func (s *Service) repoGet(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (sh
 func (s *Service) repoGetByUser(ctx context.Context, userID id.ID[user.User]) ([]shopmap.ShopMap, error) {
 	shopMapList, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
-		return shopMapList, fmt.Errorf(
-			"%w: can't get shop map list for user %s: %w",
-			shopmap.ErrShopMapService,
+		return shopMapList, wrapErr(fmt.Errorf(
+			"can't get shop map list for user %s: %w",
 			userID,
 			err,
-		)
+		))
 	}
 	return shopMapList, nil
+}
+
+func wrapErr(err error) error {
+	if err != nil {
+		return fmt.Errorf("shop map service: %w", err)
+	}
+
+	return nil
 }

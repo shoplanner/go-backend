@@ -1,15 +1,11 @@
 package shopmap
 
 import (
-	"errors"
-
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 )
-
-var ErrShopMapService = errors.New("shop map service")
 
 type ShopMap struct {
 	ShopMapConfig `bson:"inline"`
