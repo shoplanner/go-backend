@@ -3,12 +3,11 @@ package repo
 import (
 	"context"
 	"fmt"
+	"go-backend/internal/backend/shopmap"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-
-	"go-backend/internal/backend/shopmap"
 )
 
 type Repo struct {
