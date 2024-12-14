@@ -16,8 +16,8 @@ type Repo struct {
 	col *mongo.Collection
 }
 
-func (r *Repo) ID(ctx context.Context, id uuid.UUID) (models.ProductList, error) {
-	var productList models.ProductList
+func (r *Repo) ID(ctx context.Context, id uuid.UUID) (list.ProductList, error) {
+	var productList list.ProductList
 
 	res := r.col.FindOne(ctx, bson.D{{Key: "_id", Value: id}})
 	if res.Err() != nil {
@@ -34,7 +34,7 @@ func (r *Repo) Create(ctx context.Context, request list.ProductList) error {
 	return err
 }
 
-func (r *Repo) UserID(ctx context.Context, userID id.ID[user.User]) ([]models.ProductList, error) {
+func (r *Repo) UserID(ctx context.Context, userID id.ID[user.User]) ([]list.ProductList, error) {
 	var lists []list.ProductList
 
 	res, err := r.col.Find(ctx, bson.D{{Key: "user_id", Value: userID}})
