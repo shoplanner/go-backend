@@ -7,7 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"go-backend/internal/list/models"
+	"go-backend/internal/backend/list"
 )
 
 type Repo struct {

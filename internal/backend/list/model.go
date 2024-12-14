@@ -1,11 +1,11 @@
-package models
+package list
 
 import (
 	"time"
 
 	"github.com/google/uuid"
 
-	productModel "go-backend/internal/product/models"
+	"go-backend/internal/backend/product"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -14,14 +14,14 @@ import (
 type StateStatus int
 
 // ENUM(planning, processing, archived).
-type ListStatus int
+type ExecStatus int
 
 type ProductState struct {
-	ProductID uuid.UUID            `bson:"product_id" json:"product_id"`
-	Product   productModel.Product `bson:"product" json:"product"`
-	Count     *int                 `bson:"count" json:"count"`
-	FormIndex *int                 `bson:"form_index" json:"form_index"`
-	Status    StateStatus          `bson:"status" json:"status"`
+	ProductID uuid.UUID       `bson:"product_id" json:"product_id"`
+	Product   product.Product `bson:"product" json:"product"`
+	Count     *int            `bson:"count" json:"count"`
+	FormIndex *int            `bson:"form_index" json:"form_index"`
+	Status    StateStatus     `bson:"status" json:"status"`
 }
 
 type ProductList struct {
@@ -34,6 +34,6 @@ type ProductList struct {
 
 type ProductListOptions struct {
 	States  []ProductState `bson:"states" json:"states" binding:"dive"`
-	Status  ListStatus     `bson:"status" json:"status"`
+	Status  ExecStatus     `bson:"status" json:"status"`
 	OwnerID uuid.UUID      `bson:"owner_id" json:"owner_id"`
 }

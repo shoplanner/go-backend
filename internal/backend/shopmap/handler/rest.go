@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/shopmap/service"
 	"go-backend/internal/backend/user"
@@ -34,16 +34,16 @@ func New(r *gin.Engine, service *service.Service) *Handler {
 	return &h
 }
 
-// @Summary Creates new shop map
-// @ID shopmap-create
+// @Summary	Creates new shop map
+// @ID			shopmap-create
 //
-// @Tags ShopMap
-// @Accept json
-// @Param config body shopmap.ShopMapConfig true "shop map to create"
-// @Produce json
-// @Router /shopmap [post]
+// @Tags		ShopMap
+// @Accept		json
+// @Param		config	body	shopmap.Options	true	"shop map to create"
+// @Produce	json
+// @Router		/shopmap [post]
 func (h *Handler) CreateMap(ctx *gin.Context) {
-	var shopMapCfg shopmap.ShopMapConfig
+	var shopMapCfg shopmap.Options
 
 	if err := ctx.ShouldBindJSON(&shopMapCfg); err != nil {
 		ctx.String(http.StatusBadRequest, "can't decode request")
@@ -59,13 +59,13 @@ func (h *Handler) CreateMap(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, shopMap)
 }
 
-// @Summary Get existing shop map by it's ID
-// @ID shopmap-get-id
+// @Summary	Get existing shop map by it's ID
+// @ID			shopmap-get-id
 //
-// @Tags ShopMap
-// @Param id query string false "id of shop map"
-// @Produce json
-// @Router /shopmap/id [get]
+// @Tags		ShopMap
+// @Param		id	query	string	false	"id of shop map"
+// @Produce	json
+// @Router		/shopmap/id/{id} [get]
 func (h *Handler) GetByID(ctx *gin.Context) {
 	mapID, err := uuid.Parse(ctx.Query("id"))
 	if err != nil {
@@ -82,12 +82,12 @@ func (h *Handler) GetByID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, shopMap)
 }
 
-// @Summary Get shop maps of current logged user
-// @ID shopmap-get-current-user
+// @Summary	Get shop maps of current logged user
+// @ID			shopmap-get-current-user
 //
-// @Tags ShopMap
-// @Produce json
-// @Router /shopmap/user [get]
+// @Tags		ShopMap
+// @Produce	json
+// @Router		/shopmap/user [get]
 func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
 	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
 
@@ -100,21 +100,21 @@ func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, shopMapList)
 }
 
-// @Summary Deletes shop map
-// @ID shopmap-delete
+// @Summary	Deletes shop map
+// @ID			shopmap-delete
 //
-// @Param id query string false "id of shop map"
-// @Tags ShopMap
-// @Produce json
-// @Router /shopmap/id [delete]
+// @Param		id	query	string	true	"id of shop map"
+// @Tags		ShopMap
+// @Produce	json
+// @Router		/shopmap/id/{id} [delete]
 func (h *Handler) DeleteMap(ctx *gin.Context) {
 	mapID, err := uuid.Parse(ctx.Query("id"))
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id must be valid uuid")
 		return
 	}
-
-	shopMap, err := h.service.DeleteMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID})
+	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
+	shopMap, err := h.service.DeleteMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID)
 	if err != nil {
 		ctx.String(http.StatusForbidden, "map can be deleted only by owner")
 		return
@@ -123,8 +123,68 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, shopMap)
 }
 
+// @Summary	fully updates shop map
+// @ID			shopmap-update
+//
+// @Param		id		query	string			true	"id of shop map"
+// @Param		config	body	shopmap.Options	true	"new configuration"
+// @Produce	json
+// @Accept		json
+// @Router		/shopmap/id/{id} [put]
 func (h *Handler) UpdateMap(ctx *gin.Context) {
+	var shopMapCfg shopmap.Options
+	mapID, err := uuid.Parse(ctx.Query("id"))
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "id must be valid uuid")
+		return
+	}
+
+	if err := ctx.BindJSON(&shopMapCfg); err != nil {
+		ctx.String(http.StatusBadRequest, "can't decode shop map")
+		return
+	}
+
+	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
+	shopMap, err := h.service.UpdateMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID, shopMapCfg)
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "can't update shop map: %s", err.Error())
+		return
+	}
+
+	ctx.JSON(http.StatusOK, shopMap)
 }
 
+type CategoryList struct {
+	Categories []product.Category `json:"categories" bson:"categories"`
+}
+
+// @Summary	only reorder categories in given shop map
+// @ID			shopmap-reorder
+//
+// @Param		id			query	string		true	"id of shop map"
+// @Param		categories	body	[]string	true	"new order of categories"
+// @Accept		json
+// @Product	json
+// @Router		/shopmap/id/{id}/reorder [patch]
 func (h *Handler) ReorderMap(ctx *gin.Context) {
+	var categories []product.Category
+
+	mapID, err := uuid.Parse(ctx.Query("id"))
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "id is not valid")
+		return
+	}
+
+	if err := ctx.BindJSON(&categories); err != nil {
+		ctx.String(http.StatusBadRequest, "can't decode request")
+		return
+	}
+	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
+	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{mapID}, userID, categories)
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "error: %w", err.Error())
+		return
+	}
+
+	ctx.JSON(http.StatusOK, shopMap)
 }

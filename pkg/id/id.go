@@ -7,5 +7,5 @@ type ID[T any] struct {
 }
 
 func NewID[T any]() ID[T] {
-	return ID[T]{ UUID: uuid.New(), }
+	return ID[T]{UUID: uuid.New()}
 }

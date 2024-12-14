@@ -8,7 +8,7 @@ import (
 )
 
 type ShopMap struct {
-	ShopMapConfig `bson:"inline"`
+	Options `bson:"inline"`
 
 	ID        id.ID[ShopMap]           `json:"id" bson:"id"`
 	OwnerID   id.ID[user.User]         `validate:"user_id_exist" json:"owner_id" bson:"ownerId"`
@@ -16,7 +16,7 @@ type ShopMap struct {
 	UpdatedAt date.UpdateDate[ShopMap] `json:"updated_at" bson:"updatedAt"`
 }
 
-type ShopMapConfig struct {
-	CategoryList []product.Category `validate:"dive,unique" json:"categories" bson:"categories"`
-	ViewerIDList []id.ID[user.User] `validate:"unique,dive,user_id_exist" json:"viewers_id" bson:"viewersId"`
+type Options struct {
+	CategoryList []product.Category `validate:"dive,unique" json:"categories" bson:"categoryList"`
+	ViewerIDList []id.ID[user.User] `validate:"unique,dive,user_id_exist" json:"viewers_id" bson:"viewerIdList"`
 }

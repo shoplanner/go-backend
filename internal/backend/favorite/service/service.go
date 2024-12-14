@@ -6,17 +6,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"go-backend/internal/favorites/models"
-	"go-backend/internal/favorites/repo"
-	"go-backend/internal/product"
-	"go-backend/internal/user"
+	"go-backend/internal/backend/favorite"
+	"go-backend/internal/backend/favorite/repo"
+	"go-backend/internal/backend/product"
+	"go-backend/internal/backend/user"
 )
 
 type productService interface{}
 
 type favoritesRepo interface {
 	Get(ctx context.Context, userID uuid.UUID)
-	Set(ctx context.Context, list models.Favorite)
+	Set(ctx context.Context, list favorite.Favorite)
 }
 
 type userService interface {
@@ -24,9 +24,13 @@ type userService interface {
 	IsUserIdValid(context.Context) (bool, error)
 }
 
+type productService interface {
+	IsExists() error
+}
+
 type Service struct {
 	users    userService
-	products *product.Service
+	products productService
 	repo     *repo.Repo
 }
 
@@ -35,8 +39,8 @@ func NewService() *Service {
 }
 
 func (s *Service) AddProducts(ctx context.Context, userID uuid.UUID, productIDS []uuid.UUID) error {
-	_, err := s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list models.List) (models.List, error) {
-		list.Products = append(list.Products, models.Favorite{
+	_, err := s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list favorite.List) (favorite.List, error) {
+		list.Products = append(list.Products, favorite.Favorite{
 			ProductID: productID,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),

@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  deps:
+    cmds:
+      - go install github.com/swaggo/swag/cmd/swag@latest
+      - go install github.com/go-enum@latest
+  generate:
+    cmds:
+      - swag init
+      - go generate ./...
+  build:
+    cmds:
+      - go build cmd/backend/main.go -o bin/backend
+  lint:
+    cmds:
+      - golangci-lint run

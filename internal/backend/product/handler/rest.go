@@ -31,11 +31,12 @@ func (h *ProductHandler) InitRoutes(r *gin.Engine) {
 //
 // @Tags		Product
 // @Accept		json
-// @Param		product	body	models.Request	true	"product to create"
+// @Param		product	body	product.Options	true	"product to create"
 // @Produce	json
 // @Router		/product [post]
+// @Success	200	{object}	product.Product
 func (h *ProductHandler) Create(c *gin.Context) {
-	var model models.Request
+	var model product.Options
 	if err := c.ShouldBindJSON(&model); err != nil {
 		c.String(http.StatusBadRequest, "Can't decode request")
 		return
@@ -53,12 +54,13 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @ID			product-update
 //
 // @Tags		Product
-// @Param		id		path	string					true	"product id"
-// @Param		product	body	models.Request	true	"product to update"
+// @Param		id		path	string			true	"product id"
+// @Param		product	body	product.Options	true	"product to update"
 // @Produce	json
 // @Router		/product/{id} [put]
+// @Success	200	{object}	product.Product
 func (h *ProductHandler) Update(c *gin.Context) {
-	var model product.ProductConfig
+	var model product.Options
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "ID has incorrect format")
@@ -77,7 +79,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// @Summary	Creates new product
+// @Summary	Get product info
 // @ID			product-get
 //
 // @Tags		Product
@@ -85,6 +87,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 // @Param		id	path	string	true	"product id"
 // @Produce	json
 // @Router		/product/{id} [get]
+// @Success	200	{object}	product.Product
 func (h *ProductHandler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

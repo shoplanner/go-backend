@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/go-playground/validator/v10"
@@ -11,10 +12,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
+	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 	"go-backend/pkg/ph"
 )
 
@@ -47,13 +50,13 @@ func NewService() *Service {
 	return s
 }
 
-func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], cfg shopmap.ShopMapConfig) (shopmap.ShopMap, error) {
+func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], cfg shopmap.Options) (shopmap.ShopMap, error) {
 	shopMap := shopmap.ShopMap{
-		ShopMapConfig: cfg,
-		ID:            id.NewID[shopmap.ShopMap](),
-		OwnerID:       ownerID,
-		CreatedAt:     date.NewCreateDate[shopmap.ShopMap](),
-		UpdatedAt:     date.NewUpdateDate[shopmap.ShopMap](),
+		Options:   cfg,
+		ID:        id.NewID[shopmap.ShopMap](),
+		OwnerID:   ownerID,
+		CreatedAt: date.NewCreateDate[shopmap.ShopMap](),
+		UpdatedAt: date.NewUpdateDate[shopmap.ShopMap](),
 	}
 
 	if err := s.validate(ctx, shopMap); err != nil {
@@ -84,7 +87,6 @@ func (s *Service) RemoveViewerList(
 		var errs []error
 
 		toDelete := lo.SliceToMap(viewerIDs, ph.EmptyStruct)
-
 		if _, found := toDelete[shopMap.OwnerID]; found {
 			return shopMap, errors.New("can't delete owner")
 		}
@@ -107,13 +109,13 @@ func (s *Service) RemoveViewerList(
 	})
 }
 
-func (s *Service) DeleteMap(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
+func (s *Service) DeleteMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userID id.ID[user.User]) (shopmap.ShopMap, error) {
 	return s.repoDelete(ctx, mapID)
 }
 
-func (s *Service) UpdateMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], cfg shopmap.ShopMapConfig) (shopmap.ShopMap, error) {
+func (s *Service) UpdateMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userId id.ID[user.User], cfg shopmap.Options) (shopmap.ShopMap, error) {
 	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
-		shopMap.ShopMapConfig = cfg
+		shopMap.Options = cfg
 		return shopMap, s.validate(ctx, shopMap)
 	})
 }
@@ -124,6 +126,18 @@ func (s *Service) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (sh
 
 func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]shopmap.ShopMap, error) {
 	return s.repoGetByUser(ctx, userID)
+}
+
+func (s *Service) ReorderMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userID id.ID[user.User], categories []product.Category) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		if maps.Equal(lo.CountValues(shopMap.CategoryList), lo.CountValues(categories)) {
+			return shopMap, fmt.Errorf("%w: only order changes accepted", myerr.ErrInvalidArgument)
+		}
+
+		shopMap.CategoryList = categories
+
+		return shopMap, nil
+	})
 }
 
 func (s *Service) repoCreate(ctx context.Context, shopMap shopmap.ShopMap) error {

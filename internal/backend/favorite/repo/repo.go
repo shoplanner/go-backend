@@ -7,7 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"go-backend/internal/favorites/models"
+	"go-backend/internal/backend/favorite"
 )
 
 type Repo struct {
@@ -15,18 +15,16 @@ type Repo struct {
 }
 
 func NewRepo(db *mongo.Database) *Repo {
-	return &Repo{
-		col: db.Collection("favorites"),
-	}
+	return &Repo{col: db.Collection("favorites")}
 }
 
-func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) (models.List, error) {
-	var model models.List
+func (r *Repo) UserID(ctx context.Context, userID uuid.UUID) (favorite.List, error) {
+	var model favorite.List
 	return model, r.col.FindOne(ctx, bson.D{{Key: "_id", Value: userID}}).Decode(&model)
 }
 
-func (r *Repo) GetAndModify(ctx context.Context, userID uuid.UUID, modifyFunc func(ctx context.Context, list models.List) (models.List, error)) (models.List, error) {
-	var model models.List
+func (r *Repo) GetAndModify(ctx context.Context, userID uuid.UUID, modifyFunc func(ctx context.Context, list favorite.List) (favorite.List, error)) (favorite.List, error) {
+	var model favorite.List
 
 	session, err := r.col.Database().Client().StartSession()
 	if err != nil {
@@ -42,5 +40,6 @@ func (r *Repo) GetAndModify(ctx context.Context, userID uuid.UUID, modifyFunc fu
 
 		return modifyFunc(ctx, list)
 	})
-	return list.(models.List), err
+
+	return list.(favorite.List), err
 }

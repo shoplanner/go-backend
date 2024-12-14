@@ -7,14 +7,14 @@ import (
 )
 
 type Product struct {
-	ProductConfig `bson:"inline"`
+	Options `bson:"inline"`
 
 	ID        uuid.UUID `json:"id" bson:"_id"`
 	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
 }
 
-type ProductConfig struct {
+type Options struct {
 	Name     Name     `json:"name" bson:"name" binding:"required"`
 	Category Category `bson:"category" json:"category"`
 	Forms    []Form   `bson:"forms" json:"forms" binding:"dive,required"`

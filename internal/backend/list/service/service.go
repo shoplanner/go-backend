@@ -6,14 +6,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"go-backend/internal/list/models"
+	"go-backend/internal/backend/list"
 )
 
 type repo interface {
-	ID(context.Context, uuid.UUID) (models.ProductList, error)
-	Create(context.Context, models.ProductList) error
-	UserID(context.Context, uuid.UUID) ([]models.ProductList, error)
-	Update(context.Context, models.ProductList) (models.ProductList, error)
+	ID(context.Context, uuid.UUID) (list.ProductList, error)
+	Create(context.Context, list.ProductList) error
+	UserID(context.Context, uuid.UUID) ([]list.ProductList, error)
+	Update(context.Context, list.ProductList) (list.ProductList, error)
 	Delete(context.Context, uuid.UUID) error
 }
 
@@ -25,11 +25,11 @@ func NewService(repo repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) (models.ProductList, error) {
-	list := models.ProductList{
-		ProductListRequest: models.ProductList{
+func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) (list.ProductList, error) {
+	list := list.ProductList{
+		ProductListRequest: list.ProductList{
 			ID:     uuid.New(),
-			Status: models.StateStatus,
+			Status: list.StateStatus,
 		},
 		OwnerID:   creatorID,
 		CreatedAt: time.Now(),
@@ -38,8 +38,8 @@ func (s *Service) Create(ctx context.Context, name string, creatorID uuid.UUID) 
 	return list, s.repo.Create(ctx, list)
 }
 
-func (s *Service) Update(ctx context.Context, list models.ProductListRequest) (models.ProductListResponse, error) {
-	model := models.ProductList{
+func (s *Service) Update(ctx context.Context, list list.ProductList) (list.ProductList, error) {
+	model := list.ProductList{
 		ProductListRequest: list,
 		UpdatedAt:          time.Now(),
 	}
@@ -50,6 +50,6 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *Service) ID(ctx context.Context, id uuid.UUID) (models.ProductListResponse, error) {
+func (s *Service) ID(ctx context.Context, id uuid.UUID) (list.ProductList, error) {
 	return s.repo.ID(ctx, id)
 }
