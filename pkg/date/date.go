@@ -3,7 +3,7 @@ package date
 import "time"
 
 type CreateDate[T any] struct {
-	time.Time `bson:"inline"`
+	time.Time
 }
 
 func NewCreateDate[T any]() CreateDate[T] {
@@ -11,7 +11,7 @@ func NewCreateDate[T any]() CreateDate[T] {
 }
 
 type UpdateDate[T any] struct {
-	time.Time `bson:"inline"`
+	time.Time
 }
 
 func NewUpdateDate[T any]() UpdateDate[T] {

@@ -63,11 +63,13 @@ func (s *Service) Login(ctx context.Context, opts auth.Credentials) (auth.Token,
 		"role":    model.Role.String(),
 		"expires": expires.String(),
 		"tid":     accessTokenID.String(),
+		"did":     "",
 	})
 	refreshToken := jwt.NewWithClaims(&jwt.SigningMethodECDSA{}, jwt.MapClaims{
 		"sub":     model.ID.String(),
 		"expires": time.Now().Add(s.options.RefreshTokenExpires).String(),
 		"tid":     refreshTokenID.String(),
+		"did":     "",
 	})
 
 	signedRefreshToken, err := refreshToken.SignedString(s.options.PrivateKey)

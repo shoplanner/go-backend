@@ -8,7 +8,7 @@ import (
 type Product struct {
 	Options
 
-	ID        id.ID[Product]           `json:"id" bson:"_id"`
+	ID        id.ID[Product]           `json:"id"`
 	CreatedAt date.CreateDate[Product] `json:"created_at"`
 	UpdatedAt date.UpdateDate[Product] `json:"updated_at"`
 }

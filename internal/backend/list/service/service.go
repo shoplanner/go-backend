@@ -31,8 +31,9 @@ func (s *Service) Create(ctx context.Context, name string, creatorID id.ID[user.
 	list := list.ProductList{
 		Options: list.Options{
 			States: []list.ProductState{},
-			Status: list.ListStatusPlanning,
+			Status: list.ExecStatusPlanning,
 		},
+		ID:        id.NewID[list.ProductList](),
 		OwnerID:   creatorID,
 		CreatedAt: date.NewCreateDate[list.ProductList](),
 		UpdatedAt: date.NewUpdateDate[list.ProductList](),

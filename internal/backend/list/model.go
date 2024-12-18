@@ -19,23 +19,23 @@ type StateStatus int
 type ExecStatus int
 
 type ProductState struct {
-	ProductID uuid.UUID       `bson:"product_id" json:"product_id"`
-	Product   product.Product `bson:"product" json:"product"`
-	Count     mo.Option[int]  `bson:"count" json:"count"`
-	FormIndex mo.Option[int]  `bson:"form_index" json:"form_index"`
-	Status    StateStatus     `bson:"status" json:"status"`
+	ProductID uuid.UUID       `json:"product_id"`
+	Product   product.Product `json:"product"`
+	Count     mo.Option[int]  `json:"count"`
+	FormIndex mo.Option[int]  `json:"form_index"`
+	Status    StateStatus     `json:"status"`
 }
 
 type ProductList struct {
-	Options `bson:"inline"`
+	Options
 
-	ID        id.ID[ProductList]           `bson:"_id" json:"id"`
-	UpdatedAt date.UpdateDate[ProductList] `bson:"updated_at" json:"updated_at"`
-	CreatedAt date.CreateDate[ProductList] `bson:"created_at" json:"created_at"`
-	OwnerID   id.ID[user.User]             `bson:"owner_id" json:"owner_id"`
+	ID        id.ID[ProductList]           `json:"id"`
+	UpdatedAt date.UpdateDate[ProductList] `json:"updated_at"`
+	CreatedAt date.CreateDate[ProductList] `json:"created_at"`
+	OwnerID   id.ID[user.User]             `json:"owner_id"`
 }
 
 type Options struct {
-	States []ProductState `bson:"states" json:"states"`
-	Status ExecStatus     `bson:"status" json:"status"`
+	States []ProductState `json:"states"`
+	Status ExecStatus     `json:"status"`
 }

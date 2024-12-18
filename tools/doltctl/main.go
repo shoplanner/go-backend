@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 
-	"go-backend/internal/backend/api"
+	"go-backend/internal/backend/config"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	envCfg, err := api.ParseEnv(ctx)
+	envCfg, err := config.ParseEnv(ctx)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't parse environment")
 	}

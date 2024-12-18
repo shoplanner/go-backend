@@ -154,7 +154,7 @@ func (h *Handler) UpdateMap(ctx *gin.Context) {
 }
 
 type CategoryList struct {
-	Categories []product.Category `json:"categories" bson:"categories"`
+	Categories []product.Category `json:"categories"`
 }
 
 // @Summary	only reorder categories in given shop map

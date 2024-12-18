@@ -11,6 +11,7 @@ import (
 type Credentials struct {
 	Login    user.Login `json:"login"`
 	Password string     `json:"password"`
+	DeviceID string     `json:"device_id"`
 }
 
 type AccessToken string

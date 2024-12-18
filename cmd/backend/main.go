@@ -15,9 +15,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
-	"go-backend/internal/backend/api"
+	"go-backend/internal/backend/config"
 	"go-backend/internal/backend/swagger"
-	"go-backend/internal/backend/user/handler"
+	api1 "go-backend/internal/backend/user/api"
 	"go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
 	"go-backend/pkg/hashing"
@@ -44,7 +44,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 
-	appCfg, err := api.ParseConfig(*configPath)
+	appCfg, err := config.ParseConfig(*configPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't load config")
 	}
@@ -57,7 +57,7 @@ func main() {
 		log.Fatal().Err(err).Msg("can't start listening")
 	}
 
-	envCfg, err := api.ParseEnv(ctx)
+	envCfg, err := config.ParseEnv(ctx)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't parse environment")
 	}
@@ -92,7 +92,7 @@ func main() {
 
 	userDB := repo.NewRepo(db)
 	userService := userService.NewService(userDB, hashing.HashMaster{})
-	handler.RegisterREST(apiGroup, userService)
+	api1.RegisterREST(apiGroup, userService)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil {
