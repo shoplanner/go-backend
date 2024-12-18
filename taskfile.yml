@@ -1,17 +1,21 @@
-version: '3'
+version: "3"
 
 tasks:
   deps:
     cmds:
       - go install github.com/swaggo/swag/cmd/swag@latest
-      - go install github.com/go-enum@latest
+      - go install github.com/abice/go-enum@latest
   generate:
     cmds:
-      - swag init
+      - swag init -g cmd/backend/main.go
       - go generate ./...
   build:
     cmds:
-      - go build cmd/backend/main.go -o bin/backend
+      - go build -o bin/backend cmd/backend/main.go
   lint:
     cmds:
       - golangci-lint run
+  fmt:
+    cmds:
+      - swag fmt
+      - go fmt ./...

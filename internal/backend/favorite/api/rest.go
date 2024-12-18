@@ -1,10 +1,10 @@
-package handler
+package api
 
 import "github.com/gin-gonic/gin"
 
 type Handler struct{}
 
-func NewREST(r *gin.Engine) {
+func RegisterREST(r *gin.RouterGroup) {
 	group := r.Group("/favorite/user")
 
 	h := Handler{}

@@ -2,21 +2,24 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"go-backend/internal/backend/favorite"
-	"go-backend/internal/backend/favorite/repo"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
+	"go-backend/pkg/id"
 )
-
-type productService interface{}
 
 type favoritesRepo interface {
 	Get(ctx context.Context, userID uuid.UUID)
 	Set(ctx context.Context, list favorite.Favorite)
+	GetAndUpdate(context.Context, id.ID[user.User], func(list favorite.List) (favorite.List, error)) (
+		favorite.List,
+		error,
+	)
 }
 
 type userService interface {
@@ -31,29 +34,50 @@ type productService interface {
 type Service struct {
 	users    userService
 	products productService
-	repo     *repo.Repo
+	repo     favoritesRepo
 }
 
-func NewService() *Service {
-	return &Service{}
-}
-
-func (s *Service) AddProducts(ctx context.Context, userID uuid.UUID, productIDS []uuid.UUID) error {
-	_, err := s.repo.GetAndModify(ctx, userID, func(ctx context.Context, list favorite.List) (favorite.List, error) {
-		list.Products = append(list.Products, favorite.Favorite{
-			ProductID: productID,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		})
-	})
-	if err != nil {
-		return err
+func NewService(users userService, productService productService, repo favoritesRepo) *Service {
+	return &Service{
+		users:    users,
+		products: productService,
+		repo:     repo,
 	}
 }
 
-func (s *Service) AddList(userID uuid.UUID, models []models.List) error {
+func (s *Service) AddProducts(ctx context.Context, userID id.ID[user.User], productIDs []id.ID[product.Product]) (
+	favorite.List,
+	error,
+) {
+	model, err := s.repoGetAndUpdate(ctx, userID, func(list favorite.List) (favorite.List, error) {
+		for _, productID := range productIDs {
+			list.Products = append(list.Products, favorite.Favorite{
+				ProductID: productID,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
+		}
+		return list, nil
+	})
+	if err != nil {
+		return model, err
+	}
+
+	return model, nil
 }
 
 func (s *Service) Delete(userID uuid.UUID, productID uuid.UUID) error {
 	panic("Not implemented")
+}
+
+func (s *Service) repoGetAndUpdate(
+	ctx context.Context,
+	userID id.ID[user.User],
+	updateFunc func(favorite.List) (favorite.List, error),
+) (favorite.List, error) {
+	model, err := s.repo.GetAndUpdate(ctx, userID, updateFunc)
+	if err != nil {
+		return model, fmt.Errorf("can't update repo: %w", err)
+	}
+	return model, nil
 }

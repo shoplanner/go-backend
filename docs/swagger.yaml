@@ -1,0 +1,245 @@
+basePath: /api/v1
+definitions:
+  product.Options:
+    properties:
+      category:
+        type: string
+      forms:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+    type: object
+  shopmap.Options:
+    properties:
+      categories:
+        items:
+          type: string
+        type: array
+      viewers_id:
+        items:
+          type: object
+        type: array
+        uniqueItems: true
+    type: object
+  user.Options:
+    properties:
+      login:
+        type: string
+      password:
+        maxLength: 72
+        type: string
+    required:
+    - password
+    type: object
+info:
+  contact: {}
+  title: ShoPlanner
+  version: 0.0.1
+paths:
+  /product:
+    post:
+      consumes:
+      - application/json
+      operationId: product-create
+      parameters:
+      - description: product to create
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/product.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: Creates new product
+      tags:
+      - Product
+  /product/{id}:
+    get:
+      consumes:
+      - application/json
+      operationId: product-get
+      parameters:
+      - description: product id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Get product info
+      tags:
+      - Product
+    put:
+      operationId: product-update
+      parameters:
+      - description: product id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: product to update
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/product.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: Update existing new product
+      tags:
+      - Product
+  /shopmap:
+    post:
+      consumes:
+      - application/json
+      operationId: shopmap-create
+      parameters:
+      - description: shop map to create
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/shopmap.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: Creates new shop map
+      tags:
+      - ShopMap
+  /shopmap/id/{id}:
+    delete:
+      operationId: shopmap-delete
+      parameters:
+      - description: id of shop map
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Deletes shop map
+      tags:
+      - ShopMap
+    get:
+      operationId: shopmap-get-id
+      parameters:
+      - description: id of shop map
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Get existing shop map by it's ID
+      tags:
+      - ShopMap
+    put:
+      consumes:
+      - application/json
+      operationId: shopmap-update
+      parameters:
+      - description: id of shop map
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: new configuration
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/shopmap.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: fully updates shop map
+      tags:
+      - ShopMap
+  /shopmap/id/{id}/reorder:
+    patch:
+      consumes:
+      - application/json
+      operationId: shopmap-reorder
+      parameters:
+      - description: id of shop map
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: new order of categories
+        in: body
+        name: categories
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses: {}
+      summary: only reorder categories in given shop map
+      tags:
+      - ShopMap
+  /shopmap/user:
+    get:
+      operationId: shopmap-get-current-user
+      produces:
+      - application/json
+      responses: {}
+      summary: Get shop maps of current logged user
+      tags:
+      - ShopMap
+  /user:
+    get:
+      operationId: user-get-all
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      summary: list all users
+      tags:
+      - User
+  /user/login:
+    post:
+      consumes:
+      - application/json
+      operationId: user-login
+      parameters:
+      - description: creds
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/user.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: login with existing user
+      tags:
+      - User
+  /user/register:
+    post:
+      consumes:
+      - application/json
+      operationId: user-register
+      parameters:
+      - description: data for creating new user
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/user.Options'
+      produces:
+      - application/json
+      responses: {}
+      summary: creates new user
+      tags:
+      - User
+swagger: "2.0"

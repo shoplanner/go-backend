@@ -1,4 +1,4 @@
-package handler
+package api
 
 import (
 	"net/http"
@@ -8,17 +8,16 @@ import (
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/product/service"
+	"go-backend/pkg/id"
 )
 
 type ProductHandler struct {
 	service *service.Service
 }
 
-func NewProductController(service *service.Service) *ProductHandler {
-	return &ProductHandler{service: service}
-}
+func NewProductController(r *gin.RouterGroup, service *service.Service) {
+	h := &ProductHandler{service: service}
 
-func (h *ProductHandler) InitRoutes(r *gin.Engine) {
 	group := r.Group("product")
 
 	group.GET("/:id", h.Get)
@@ -34,7 +33,6 @@ func (h *ProductHandler) InitRoutes(r *gin.Engine) {
 // @Param		product	body	product.Options	true	"product to create"
 // @Produce	json
 // @Router		/product [post]
-// @Success	200	{object}	product.Product
 func (h *ProductHandler) Create(c *gin.Context) {
 	var model product.Options
 	if err := c.ShouldBindJSON(&model); err != nil {
@@ -58,10 +56,9 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @Param		product	body	product.Options	true	"product to update"
 // @Produce	json
 // @Router		/product/{id} [put]
-// @Success	200	{object}	product.Product
 func (h *ProductHandler) Update(c *gin.Context) {
 	var model product.Options
-	id, err := uuid.Parse(c.Param("id"))
+	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "ID has incorrect format")
 		return
@@ -70,7 +67,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Can't decode request")
 		return
 	}
-	updated, err := h.service.Update(c, id, model)
+	updated, err := h.service.Update(c, id.ID[product.Product]{UUID: productID}, model)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Internal error")
 		return
@@ -87,15 +84,14 @@ func (h *ProductHandler) Update(c *gin.Context) {
 // @Param		id	path	string	true	"product id"
 // @Produce	json
 // @Router		/product/{id} [get]
-// @Success	200	{object}	product.Product
 func (h *ProductHandler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "ID has incorrect format")
 		return
 	}
 
-	model, err := h.service.ID(c, id)
+	model, err := h.service.ID(c, id.ID[product.Product]{UUID: productID})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Internal error")
 		return

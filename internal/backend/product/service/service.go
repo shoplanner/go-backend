@@ -14,7 +14,9 @@ import (
 )
 
 type repo interface {
-	GetByID(context.Context, id.ID[product.Product])
+	GetByIDList(context.Context, []id.ID[product.Product]) ([]product.Product, error)
+	Create(context.Context, product.Product) error
+	Update(context.Context, product.Product) error
 }
 
 type Service struct {
@@ -27,29 +29,29 @@ func NewService(repo repo) *Service {
 	return &Service{repo: repo, log: *zap.NewNop().Sugar().Named("")}
 }
 
-func (s *Service) ID(ctx context.Context, id uuid.UUID) (product.Product, error) {
-	var product models.ProductInfo
+func (s *Service) ID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
+	var model []product.Product
 	var err error
 	lo.Synchronize(&s.lock).Do(func() {
-		product, err = s.repo.ID(ctx, id)
+		model, err = s.repo.GetByIDList(ctx, []id.ID[product.Product]{productID})
 	})
 
-	return product, err
+	return model[0], err
 }
 
-func (s *Service) IDList(ctx context.Context, ids []uuid.UUID) ([]models.Response, error) {
+func (s *Service) IDList(ctx context.Context, ids []id.ID[product.Product]) ([]product.Product, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	return s.repo.IDList(ctx, ids)
+	return s.repo.GetByIDList(ctx, ids)
 }
 
-func (s *Service) Create(ctx context.Context, product models.Request) (models.Response, error) {
+func (s *Service) Create(ctx context.Context, options product.Options) (product.Product, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	full := models.Response{
-		Request:   product,
+	full := product.Product{
+		Options:   options,
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -58,17 +60,14 @@ func (s *Service) Create(ctx context.Context, product models.Request) (models.Re
 	return full, s.repo.Create(ctx, full)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, product models.Request) (models.Response, error) {
+func (s *Service) Update(ctx context.Context, productID id.ID[product.Product], options product.Options) (product.Product, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	model, err := s.repo.ID(ctx, id)
+	model, err := s.repo.GetByIDList(ctx, []id.ID[product.Product]{productID})
 	if err != nil {
-		return model, err
+		return model[0], err
 	}
 
-	model.Request = product
-	model.UpdatedAt = time.Now()
-
-	return s.repo.Update(ctx, model)
+	return model[0], s.repo.Update(ctx, model[0])
 }

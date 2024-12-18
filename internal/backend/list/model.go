@@ -1,11 +1,13 @@
 package list
 
 import (
-	"time"
-
 	"github.com/google/uuid"
+	"github.com/samber/mo"
 
 	"go-backend/internal/backend/product"
+	"go-backend/internal/backend/user"
+	"go-backend/pkg/date"
+	"go-backend/pkg/id"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -19,21 +21,21 @@ type ExecStatus int
 type ProductState struct {
 	ProductID uuid.UUID       `bson:"product_id" json:"product_id"`
 	Product   product.Product `bson:"product" json:"product"`
-	Count     *int            `bson:"count" json:"count"`
-	FormIndex *int            `bson:"form_index" json:"form_index"`
+	Count     mo.Option[int]  `bson:"count" json:"count"`
+	FormIndex mo.Option[int]  `bson:"form_index" json:"form_index"`
 	Status    StateStatus     `bson:"status" json:"status"`
 }
 
 type ProductList struct {
-	ProductListOptions `bson:"inline"`
+	Options `bson:"inline"`
 
-	ID        uuid.UUID `bson:"_id" json:"id"`
-	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
-	CreatedAt time.Time `bson:"created_at" json:"created_at"`
+	ID        id.ID[ProductList]           `bson:"_id" json:"id"`
+	UpdatedAt date.UpdateDate[ProductList] `bson:"updated_at" json:"updated_at"`
+	CreatedAt date.CreateDate[ProductList] `bson:"created_at" json:"created_at"`
+	OwnerID   id.ID[user.User]             `bson:"owner_id" json:"owner_id"`
 }
 
-type ProductListOptions struct {
-	States  []ProductState `bson:"states" json:"states" binding:"dive"`
-	Status  ExecStatus     `bson:"status" json:"status"`
-	OwnerID uuid.UUID      `bson:"owner_id" json:"owner_id"`
+type Options struct {
+	States []ProductState `bson:"states" json:"states"`
+	Status ExecStatus     `bson:"status" json:"status"`
 }

@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - engine: "mysql"
+    queries:
+      - "query.sql"
+    schema:
+      - "schema.sql"
+    gen:
+      go:
+        output_batch_file_name: batch.go
+        output_db_file_name: db.go
+        output_models_file_name: models.go
+        output_querier_file_name: querier.go
+        package: "sqlc"
+        out: "sqlc"

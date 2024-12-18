@@ -1,10 +1,10 @@
-package handler
+package api
 
 import "github.com/gin-gonic/gin"
 
 type Handler struct{}
 
-func NewHandler(r *gin.Engine) *gin.RouterGroup {
+func RegisterREST(r *gin.RouterGroup) {
 	group := r.Group("list")
 
 	h := Handler{}
@@ -19,7 +19,6 @@ func NewHandler(r *gin.Engine) *gin.RouterGroup {
 	idGroup.DELETE("/:id/product", h.DeleteProduct)
 	idGroup.POST("/:id/member", h.AddViewer)
 	idGroup.PUT("/:id", h.Update)
-	return group
 }
 
 func (h *Handler) Create(ctx *gin.Context) {

@@ -162,6 +162,9 @@ linters-settings:
     # Default: 30
     max-func-lines: 0
 
+  lll:
+    line-length: 120
+
   nolintlint:
     # Exclude following linters from requiring an explanation.
     # Default: []
@@ -233,7 +236,6 @@ linters:
     - exhaustive # checks exhaustiveness of enum switch statements
     - exportloopref # checks for pointers to enclosing loop variables
     - fatcontext # detects nested contexts in loops
-    - forbidigo # forbids identifiers
     - funlen # tool for detection of long functions
     - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
     - gochecknoglobals # checks that no global variables exist

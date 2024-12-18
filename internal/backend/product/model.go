@@ -1,23 +1,22 @@
 package product
 
 import (
-	"time"
-
-	"github.com/google/uuid"
+	"go-backend/pkg/date"
+	"go-backend/pkg/id"
 )
 
 type Product struct {
-	Options `bson:"inline"`
+	Options
 
-	ID        uuid.UUID `json:"id" bson:"_id"`
-	CreatedAt time.Time `json:"created_at" bson:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
+	ID        id.ID[Product]           `json:"id" bson:"_id"`
+	CreatedAt date.CreateDate[Product] `json:"created_at"`
+	UpdatedAt date.UpdateDate[Product] `json:"updated_at"`
 }
 
 type Options struct {
-	Name     Name     `json:"name" bson:"name" binding:"required"`
-	Category Category `bson:"category" json:"category"`
-	Forms    []Form   `bson:"forms" json:"forms" binding:"dive,required"`
+	Name     Name     `json:"name"`
+	Category Category `json:"category"`
+	Forms    []Form   `json:"forms"`
 }
 
 type Category string

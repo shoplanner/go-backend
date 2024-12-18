@@ -1,4 +1,4 @@
-package handler
+package api
 
 import (
 	"net/http"
@@ -17,7 +17,7 @@ type Handler struct {
 	service *service.Service
 }
 
-func New(r *gin.Engine, service *service.Service) *Handler {
+func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 	h := Handler{service: service}
 
 	group := r.Group("/shopmap")
@@ -30,8 +30,6 @@ func New(r *gin.Engine, service *service.Service) *Handler {
 	idGroup.DELETE("/:id", h.DeleteMap)
 	idGroup.PUT("/:id", h.UpdateMap)
 	idGroup.PATCH("/:id/reorder", h.ReorderMap)
-
-	return &h
 }
 
 // @Summary	Creates new shop map
@@ -125,6 +123,7 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 
 // @Summary	fully updates shop map
 // @ID			shopmap-update
+// @Tags		ShopMap
 //
 // @Param		id		query	string			true	"id of shop map"
 // @Param		config	body	shopmap.Options	true	"new configuration"
@@ -160,11 +159,12 @@ type CategoryList struct {
 
 // @Summary	only reorder categories in given shop map
 // @ID			shopmap-reorder
+// @Tags		ShopMap
 //
 // @Param		id			query	string		true	"id of shop map"
 // @Param		categories	body	[]string	true	"new order of categories"
 // @Accept		json
-// @Product	json
+// @Produce	json
 // @Router		/shopmap/id/{id}/reorder [patch]
 func (h *Handler) ReorderMap(ctx *gin.Context) {
 	var categories []product.Category
@@ -180,7 +180,7 @@ func (h *Handler) ReorderMap(ctx *gin.Context) {
 		return
 	}
 	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{mapID}, userID, categories)
+	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID, categories)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "error: %w", err.Error())
 		return

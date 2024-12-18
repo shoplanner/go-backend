@@ -12,73 +12,73 @@ import (
 )
 
 const (
-	// ListStatusPlanning is a ListStatus of type Planning.
-	ListStatusPlanning ExecStatus = iota
-	// ListStatusProcessing is a ListStatus of type Processing.
-	ListStatusProcessing
-	// ListStatusArchived is a ListStatus of type Archived.
-	ListStatusArchived
+	// ExecStatusPlanning is a ExecStatus of type Planning.
+	ExecStatusPlanning ExecStatus = iota
+	// ExecStatusProcessing is a ExecStatus of type Processing.
+	ExecStatusProcessing
+	// ExecStatusArchived is a ExecStatus of type Archived.
+	ExecStatusArchived
 )
 
-var ErrInvalidListStatus = fmt.Errorf("not a valid ListStatus, try [%s]", strings.Join(_ListStatusNames, ", "))
+var ErrInvalidExecStatus = fmt.Errorf("not a valid ExecStatus, try [%s]", strings.Join(_ExecStatusNames, ", "))
 
-const _ListStatusName = "planningprocessingarchived"
+const _ExecStatusName = "planningprocessingarchived"
 
-var _ListStatusNames = []string{
-	_ListStatusName[0:8],
-	_ListStatusName[8:18],
-	_ListStatusName[18:26],
+var _ExecStatusNames = []string{
+	_ExecStatusName[0:8],
+	_ExecStatusName[8:18],
+	_ExecStatusName[18:26],
 }
 
-// ListStatusNames returns a list of possible string values of ListStatus.
-func ListStatusNames() []string {
-	tmp := make([]string, len(_ListStatusNames))
-	copy(tmp, _ListStatusNames)
+// ExecStatusNames returns a list of possible string values of ExecStatus.
+func ExecStatusNames() []string {
+	tmp := make([]string, len(_ExecStatusNames))
+	copy(tmp, _ExecStatusNames)
 	return tmp
 }
 
-// ListStatusValues returns a list of the values for ListStatus
-func ListStatusValues() []ExecStatus {
+// ExecStatusValues returns a list of the values for ExecStatus
+func ExecStatusValues() []ExecStatus {
 	return []ExecStatus{
-		ListStatusPlanning,
-		ListStatusProcessing,
-		ListStatusArchived,
+		ExecStatusPlanning,
+		ExecStatusProcessing,
+		ExecStatusArchived,
 	}
 }
 
-var _ListStatusMap = map[ExecStatus]string{
-	ListStatusPlanning:   _ListStatusName[0:8],
-	ListStatusProcessing: _ListStatusName[8:18],
-	ListStatusArchived:   _ListStatusName[18:26],
+var _ExecStatusMap = map[ExecStatus]string{
+	ExecStatusPlanning:   _ExecStatusName[0:8],
+	ExecStatusProcessing: _ExecStatusName[8:18],
+	ExecStatusArchived:   _ExecStatusName[18:26],
 }
 
 // String implements the Stringer interface.
 func (x ExecStatus) String() string {
-	if str, ok := _ListStatusMap[x]; ok {
+	if str, ok := _ExecStatusMap[x]; ok {
 		return str
 	}
-	return fmt.Sprintf("ListStatus(%d)", x)
+	return fmt.Sprintf("ExecStatus(%d)", x)
 }
 
 // IsValid provides a quick way to determine if the typed value is
 // part of the allowed enumerated values
 func (x ExecStatus) IsValid() bool {
-	_, ok := _ListStatusMap[x]
+	_, ok := _ExecStatusMap[x]
 	return ok
 }
 
-var _ListStatusValue = map[string]ExecStatus{
-	_ListStatusName[0:8]:   ListStatusPlanning,
-	_ListStatusName[8:18]:  ListStatusProcessing,
-	_ListStatusName[18:26]: ListStatusArchived,
+var _ExecStatusValue = map[string]ExecStatus{
+	_ExecStatusName[0:8]:   ExecStatusPlanning,
+	_ExecStatusName[8:18]:  ExecStatusProcessing,
+	_ExecStatusName[18:26]: ExecStatusArchived,
 }
 
-// ParseListStatus attempts to convert a string to a ListStatus.
-func ParseListStatus(name string) (ExecStatus, error) {
-	if x, ok := _ListStatusValue[name]; ok {
+// ParseExecStatus attempts to convert a string to a ExecStatus.
+func ParseExecStatus(name string) (ExecStatus, error) {
+	if x, ok := _ExecStatusValue[name]; ok {
 		return x, nil
 	}
-	return ExecStatus(0), fmt.Errorf("%s is %w", name, ErrInvalidListStatus)
+	return ExecStatus(0), fmt.Errorf("%s is %w", name, ErrInvalidExecStatus)
 }
 
 // MarshalText implements the text marshaller method.
@@ -89,7 +89,7 @@ func (x ExecStatus) MarshalText() ([]byte, error) {
 // UnmarshalText implements the text unmarshaller method.
 func (x *ExecStatus) UnmarshalText(text []byte) error {
 	name := string(text)
-	tmp, err := ParseListStatus(name)
+	tmp, err := ParseExecStatus(name)
 	if err != nil {
 		return err
 	}
