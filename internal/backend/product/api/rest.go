@@ -15,14 +15,14 @@ type ProductHandler struct {
 	service *service.Service
 }
 
-func NewProductController(r *gin.RouterGroup, service *service.Service) {
+func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 	h := &ProductHandler{service: service}
 
 	group := r.Group("product")
 
 	group.GET("/:id", h.Get)
 	group.PUT("/:id", h.Update)
-	group.POST("/", h.Create)
+	group.POST("", h.Create)
 }
 
 // @Summary	Creates new product

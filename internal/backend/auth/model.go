@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"fmt"
 	"time"
 
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -63,3 +65,8 @@ type (
 )
 
 type DeviceID string
+
+var (
+	ErrTokenExpired   = fmt.Errorf("%w: expired", myerr.ErrForbidden)
+	ErrTokenNotActive = fmt.Errorf("%w: not active yet", myerr.ErrForbidden)
+)

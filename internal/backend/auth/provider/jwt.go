@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -20,6 +21,14 @@ const (
 	notBeforeClaim = "nbf"
 	tokenIDClaim   = "jti"
 	deviceIDClaim  = "did"
+	typeClaim      = "typ"
+)
+
+type TokenType string
+
+const (
+	AccessTokenType  TokenType = "access"
+	RefreshTokenType TokenType = "refresh"
 )
 
 type JWTProvider struct {
@@ -30,14 +39,18 @@ func NewJWT(privateKey *ecdsa.PrivateKey) *JWTProvider {
 	return &JWTProvider{privateKey: privateKey}
 }
 
-func (p *JWTProvider) EncodeAccessToken(_ context.Context, token auth.AccessTokenOptions) (auth.EncodedAccessToken, error) {
-	accessToken := jwt.NewWithClaims(&jwt.SigningMethodECDSA{}, jwt.MapClaims{
+func (p *JWTProvider) EncodeAccessToken(_ context.Context, token auth.AccessTokenOptions) (
+	auth.EncodedAccessToken,
+	error,
+) {
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
 		userIDClaim:    token.UserID.String(),
 		roleClaim:      token.Role.String(),
 		expiresClaim:   token.Expires.UTC().Unix(),
 		tokenIDClaim:   token.ID.String(),
 		deviceIDClaim:  token.DeviceID,
 		notBeforeClaim: token.IssuedAt.UTC().Unix(),
+		typeClaim:      AccessTokenType,
 	})
 
 	encoded, err := accessToken.SignedString(p.privateKey)
@@ -52,12 +65,13 @@ func (p *JWTProvider) EncodeRefreshToken(_ context.Context, token auth.RefreshTo
 	auth.EncodedRefreshToken,
 	error,
 ) {
-	refreshToken := jwt.NewWithClaims(&jwt.SigningMethodECDSA{}, jwt.MapClaims{
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
 		userIDClaim:    token.UserID.String(),
 		expiresClaim:   jwt.NewNumericDate(token.Expires.UTC()),
 		notBeforeClaim: jwt.NewNumericDate(token.IssuedAt.UTC()),
 		tokenIDClaim:   token.ID.String(),
 		deviceIDClaim:  token.DeviceID,
+		typeClaim:      RefreshTokenType,
 	})
 
 	encoded, err := refreshToken.SignedString(p.privateKey)
@@ -75,14 +89,32 @@ func (p *JWTProvider) DecodeRefreshToken(_ context.Context, encoded auth.Encoded
 	var claims jwt.MapClaims
 	var opts auth.RefreshTokenOptions
 
-	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(t *jwt.Token) (interface{}, error) {
-		return p.privateKey.PublicKey, nil
+	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(_ *jwt.Token) (interface{}, error) {
+		return &p.privateKey.PublicKey, nil
 	})
-	if err != nil {
+	if errors.Is(err, jwt.ErrTokenExpired) {
+		return auth.RefreshTokenOptions{}, fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
+	} else if errors.Is(err, jwt.ErrTokenUsedBeforeIssued) {
+		return auth.RefreshTokenOptions{}, fmt.Errorf("%w: refresh token", auth.ErrTokenNotActive)
+	} else if err != nil {
 		return auth.RefreshTokenOptions{}, fmt.Errorf("can't verify token: %w", err)
 	}
 
-	tokenID, err := uuid.Parse(claims[tokenIDClaim].(string))
+	tokenType, passed := claims[typeClaim].(string)
+	if !passed {
+		return auth.RefreshTokenOptions{}, errors.New("non refresh token passed")
+	}
+
+	if tokenType != string(RefreshTokenType) {
+		return auth.RefreshTokenOptions{}, errors.New("non refresh token passed")
+	}
+
+	rawTokenID, passed := claims[tokenIDClaim].(string)
+	if !passed {
+		return auth.RefreshTokenOptions{}, errors.New("token id isn't passed")
+	}
+
+	tokenID, err := uuid.Parse(rawTokenID)
 	if err != nil {
 		return opts, fmt.Errorf("can't decode token ID: %w", err)
 	}
@@ -104,27 +136,54 @@ func (p *JWTProvider) DecodeRefreshToken(_ context.Context, encoded auth.Encoded
 		return opts, fmt.Errorf("can't get not before claim: %w", err)
 	}
 
+	rawDeviceID, passed := claims[deviceIDClaim].(string)
+	if !passed {
+		return opts, errors.New("device id is not passed")
+	}
+
 	return auth.RefreshTokenOptions{
 		TokenID: auth.TokenID[auth.RefreshToken]{
 			ID:       id.ID[auth.RefreshToken]{UUID: tokenID},
 			UserID:   id.ID[user.User]{UUID: userID},
-			DeviceID: claims[deviceIDClaim].(auth.DeviceID),
+			DeviceID: auth.DeviceID(rawDeviceID),
 		},
 		Expires:  expires.Time,
 		IssuedAt: issuedAt.Time,
 	}, nil
 }
 
-func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedAccessToken) (auth.AccessTokenOptions, error) {
+func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedAccessToken) (
+	auth.AccessTokenOptions,
+	error,
+) {
 	var claims jwt.MapClaims
 
-	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(t *jwt.Token) (interface{}, error) {
-		return p.privateKey.PublicKey, nil
+	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(_ *jwt.Token) (interface{}, error) {
+		return &p.privateKey.PublicKey, nil
 	})
-	if err != nil {
-		return auth.AccessTokenOptions{}, err
+
+	if errors.Is(err, jwt.ErrTokenExpired) {
+		return auth.AccessTokenOptions{}, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
+	} else if errors.Is(err, jwt.ErrTokenUsedBeforeIssued) {
+		return auth.AccessTokenOptions{}, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
+	} else if err != nil {
+		return auth.AccessTokenOptions{}, fmt.Errorf("JWT EcDSA decoding: %w", err)
 	}
-	tokenID, err := uuid.Parse(claims[tokenIDClaim].(string))
+	rawTokenID, passed := claims[tokenIDClaim].(string)
+	if !passed {
+		return auth.AccessTokenOptions{}, errors.New("token id is not passed")
+	}
+
+	tokenType, passed := claims[typeClaim].(string)
+	if !passed {
+		return auth.AccessTokenOptions{}, errors.New("non access token passed")
+	}
+
+	if tokenType != string(AccessTokenType) {
+		return auth.AccessTokenOptions{}, errors.New("non access token passed")
+	}
+
+	tokenID, err := uuid.Parse(rawTokenID)
 	if err != nil {
 		return auth.AccessTokenOptions{}, fmt.Errorf("can't decode token ID: %w", err)
 	}
@@ -144,9 +203,18 @@ func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedA
 	if err != nil {
 		return auth.AccessTokenOptions{}, fmt.Errorf("can't get not before claim: %w", err)
 	}
-	role, err := user.ParseRole(claims[roleClaim].(string))
+	rawRole, passed := claims[roleClaim].(string)
+	if !passed {
+		return auth.AccessTokenOptions{}, errors.New("role is not passed")
+	}
+	role, err := user.ParseRole(rawRole)
 	if err != nil {
 		return auth.AccessTokenOptions{}, fmt.Errorf("can't parse user role: %w", err)
+	}
+
+	rawDeviceID, passed := claims[deviceIDClaim].(string)
+	if !passed {
+		return auth.AccessTokenOptions{}, errors.New("device id is not passed")
 	}
 
 	return auth.AccessTokenOptions{
@@ -154,7 +222,7 @@ func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedA
 		TokenID: auth.TokenID[auth.AccessToken]{
 			ID:       id.ID[auth.AccessToken]{UUID: tokenID},
 			UserID:   id.ID[user.User]{UUID: userID},
-			DeviceID: claims[deviceIDClaim].(auth.DeviceID),
+			DeviceID: auth.DeviceID(rawDeviceID),
 		},
 		Expires:  expires.Time,
 		IssuedAt: issuedAt.Time,

@@ -1,8 +1,14 @@
-FROM golang:1.23.1 as build
+FROM golang:1.23.4 AS build
 
 WORKDIR /app
 
-RUN go install github.com/abice/go-enum@latest
+ENV GOBIN=/bin
+
+RUN go install github.com/go-task/task/v3/cmd/task@latest
+
+COPY taskfile.yml .
+
+RUN task deps
 
 COPY go.mod .
 COPY go.sum .
@@ -12,9 +18,10 @@ RUN go mod download
 
 COPY . .
 
-RUN go generate ./...
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build  -ldflags="-w -s" -o bin/shoplanner cmd/shoplanner/main.go
+RUN task generate
+RUN CGO_ENABLED=0 task build
 
-FROM scratch as prod
-COPY --from=build /app/bin/shoplanner /bin/shoplanner
+FROM scratch AS prod
+COPY --from=build /app/bin/backend /bin/shoplanner
+COPY --from=build /app/config/backend.yml /etc/backend.yaml
 ENTRYPOINT ["/bin/shoplanner"]

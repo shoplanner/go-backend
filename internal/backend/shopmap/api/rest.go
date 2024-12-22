@@ -22,7 +22,7 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 
 	group := r.Group("/shopmap")
 
-	group.POST("/", h.CreateMap)
+	group.POST("", h.CreateMap)
 	group.GET("/user", h.GetCurrentUserList)
 
 	idGroup := group.Group("/id")

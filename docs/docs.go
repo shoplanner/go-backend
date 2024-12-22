@@ -41,13 +41,21 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TokenResponse"
+                        }
                     }
                 }
             }
         },
         "/auth/logout": {
             "post": {
+                "security": [
+                    {
+                        "ApiAuthKey": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -59,6 +67,37 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "refresh access token",
+                "operationId": "auth-refresh",
+                "parameters": [
+                    {
+                        "description": "refresh token",
+                        "name": "token",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TokenResponse"
+                        }
                     }
                 }
             }
@@ -296,6 +335,11 @@ const docTemplate = `{
         },
         "/user": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -340,6 +384,31 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.RefreshRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.Credentials": {
             "type": "object",
             "properties": {
@@ -403,6 +472,13 @@ const docTemplate = `{
                     "maxLength": 72
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "Auth",
+            "in": "header"
         }
     }
 }`

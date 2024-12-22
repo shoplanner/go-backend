@@ -5,11 +5,11 @@ import "github.com/gin-gonic/gin"
 type Handler struct{}
 
 func RegisterREST(r *gin.RouterGroup) {
-	group := r.Group("list")
+	group := r.Group("/list")
 
 	h := Handler{}
 
-	r.POST("/", h.Create)
+	r.POST("", h.Create)
 	group.GET("/user", h.GetByUserID)
 
 	idGroup := group.Group("/id")
@@ -17,7 +17,7 @@ func RegisterREST(r *gin.RouterGroup) {
 	idGroup.DELETE("/:id", h.Delete)
 	idGroup.POST("/:id/product", h.AddProduct)
 	idGroup.DELETE("/:id/product", h.DeleteProduct)
-	idGroup.POST("/:id/member", h.AddViewer)
+	idGroup.POST("/:id/member", h.AddViewerList)
 	idGroup.PUT("/:id", h.Update)
 }
 
@@ -36,7 +36,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 func (h *Handler) Update(ctx *gin.Context) {
 }
 
-func (h *Handler) AddViewer(ctx *gin.Context) {
+func (h *Handler) AddViewerList(ctx *gin.Context) {
 }
 
 func (h *Handler) AddProduct(ctx *gin.Context) {

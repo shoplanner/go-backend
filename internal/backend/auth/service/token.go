@@ -24,7 +24,7 @@ type tokenRepo[T any] interface {
 	Set(context.Context, auth.TokenID[T], auth.TokenState) error
 	GetByID(context.Context, id.ID[T]) (auth.TokenID[T], auth.TokenState, error)
 	DeleteByID(context.Context, id.ID[T]) error
-	RevokeByDeviceID(context.Context, auth.DeviceID) error
+	RevokeByDeviceID(context.Context, id.ID[user.User], auth.DeviceID) error
 	RevokeByUserID(context.Context, id.ID[user.User]) error
 }
 
@@ -78,7 +78,7 @@ func (s *Service) Login(ctx context.Context, opts auth.Credentials) (auth.Access
 	return s.getNewTokens(ctx, loggedUser, opts.DeviceID)
 }
 
-func (s *Service) Refresh(ctx context.Context, userID id.ID[user.User], encodedRefreshToken auth.EncodedAccessToken) (
+func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedRefreshToken) (
 	auth.AccessToken,
 	auth.RefreshToken,
 	error,
@@ -86,12 +86,12 @@ func (s *Service) Refresh(ctx context.Context, userID id.ID[user.User], encodedR
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	tokenOptions, err := s.encoder.DecodeAccessToken(ctx, encodedRefreshToken)
+	opts, err := s.encoder.DecodeRefreshToken(ctx, encodedRefreshToken)
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't decode refresh token: %w", err)
 	}
 
-	_, state, err := s.accessRepo.GetByID(ctx, tokenOptions.ID)
+	_, state, err := s.refreshRepo.GetByID(ctx, opts.ID)
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get token info from storage: %w", err)
 	}
@@ -101,36 +101,38 @@ func (s *Service) Refresh(ctx context.Context, userID id.ID[user.User], encodedR
 		// emergency close all sections
 		var errs []error
 
-		if deleteError := s.accessRepo.RevokeByUserID(ctx, tokenOptions.UserID); deleteError != nil {
-			errs = append(errs, fmt.Errorf("can't revoke all refresh tokens for user id %s: %w", userID, err))
+		if deleteError := s.accessRepo.RevokeByUserID(ctx, opts.UserID); deleteError != nil {
+			errs = append(errs, fmt.Errorf("can't revoke all refresh tokens for user id %s: %w", opts.UserID, err))
 		}
-		if deleteError := s.refreshRepo.RevokeByUserID(ctx, tokenOptions.UserID); deleteError != nil {
-			errs = append(errs, fmt.Errorf("can't revoke all access tokens for user id %s: %w", userID, deleteError))
+		if deleteError := s.refreshRepo.RevokeByUserID(ctx, opts.UserID); deleteError != nil {
+			errs = append(errs, fmt.Errorf("can't revoke all access tokens for user id %s: %w", opts.UserID, deleteError))
 		}
 
-		return auth.AccessToken{}, auth.RefreshToken{}, errors.Join(errs...)
+		return auth.AccessToken{}, auth.RefreshToken{}, errors.Join(
+			append(errs, fmt.Errorf("%w: token was already revoked", myerr.ErrForbidden))...,
+		)
 	}
 
-	if time.Now().UTC().Compare(tokenOptions.Expires.UTC()) != -1 {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token expired", myerr.ErrForbidden)
+	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
+		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
 	}
-	if time.Now().UTC().Compare(tokenOptions.IssuedAt.UTC()) != 1 {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token is not active yet", myerr.ErrForbidden)
+	if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
+		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token", auth.ErrTokenNotActive)
 	}
 
-	loggedUser, err := s.users.GetByID(ctx, userID)
+	loggedUser, err := s.users.GetByID(ctx, opts.UserID)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get user %s: %w", userID, err)
+		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get user %s: %w", opts.UserID, err)
 	}
 
-	if err = s.refreshRepo.RevokeByDeviceID(ctx, tokenOptions.DeviceID); err != nil {
+	if err = s.refreshRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke: %w", err)
 	}
-	if err = s.accessRepo.RevokeByDeviceID(ctx, tokenOptions.DeviceID); err != nil {
+	if err = s.accessRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke access tokens: %w", err)
 	}
 
-	return s.getNewTokens(ctx, loggedUser, tokenOptions.DeviceID)
+	return s.getNewTokens(ctx, loggedUser, opts.DeviceID)
 }
 
 func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.EncodedAccessToken) (
@@ -153,13 +155,23 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 		return opts, fmt.Errorf("%w: token %s already revoked", myerr.ErrForbidden, tokenID.ID)
 	}
 	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
-		return opts, fmt.Errorf("%w: token expired", myerr.ErrForbidden)
+		return opts, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
 	}
 	if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
-		return opts, fmt.Errorf("%w: current time is below 'not before'", myerr.ErrForbidden)
+		return opts, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
 	}
 
 	return opts, nil
+}
+
+func (s *Service) Logout(ctx context.Context, userID id.ID[user.User], deviceID auth.DeviceID) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	return errors.Join(
+		s.accessRepo.RevokeByDeviceID(ctx, userID, deviceID),
+		s.refreshRepo.RevokeByDeviceID(ctx, userID, deviceID),
+	)
 }
 
 func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceID auth.DeviceID) (

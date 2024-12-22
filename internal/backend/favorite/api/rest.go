@@ -9,9 +9,9 @@ func RegisterREST(r *gin.RouterGroup) {
 
 	h := Handler{}
 
-	group.GET("/", h.GetFavoriteList)
-	group.DELETE("/", h.DeleteProductList)
-	group.POST("/", h.AppendProductList)
+	group.GET("", h.GetFavoriteList)
+	group.DELETE("", h.DeleteProductList)
+	group.POST("", h.AppendProductList)
 }
 
 func (h *Handler) GetFavoriteList(ctx *gin.Context) {

@@ -1,5 +1,21 @@
 basePath: /api/v1
 definitions:
+  api.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  api.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires:
+        type: string
+      refresh_token:
+        type: string
+      type:
+        type: string
+    type: object
   auth.Credentials:
     properties:
       device_id:
@@ -64,6 +80,8 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/api.TokenResponse'
       summary: login with existing user
       tags:
       - Auth
@@ -75,7 +93,29 @@ paths:
       responses:
         "200":
           description: OK
+      security:
+      - ApiAuthKey: []
       summary: logout from session
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      operationId: auth-refresh
+      parameters:
+      - description: refresh token
+        in: body
+        name: token
+        required: true
+        schema:
+          $ref: '#/definitions/api.RefreshRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TokenResponse'
+      summary: refresh access token
       tags:
       - Auth
   /product:
@@ -243,6 +283,8 @@ paths:
       responses:
         "200":
           description: OK
+      security:
+      - ApiKeyAuth: []
       summary: list all users
       tags:
       - User
@@ -264,4 +306,9 @@ paths:
       summary: creates new user
       tags:
       - User
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Auth
+    type: apiKey
 swagger: "2.0"

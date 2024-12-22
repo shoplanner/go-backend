@@ -36,7 +36,12 @@ type AuthEnv struct {
 	PrivateKey string `env:"AUTH_PRIVATE_KEY"`
 }
 
-type RedisEnv struct{}
+type RedisEnv struct {
+	Addr     string `env:"REDIS_ADDR"`
+	Password string `env:"REDIS_PASS"`
+	Net      string `env:"REDIS_NET"`
+	User     string `env:"REDIS_USER"`
+}
 
 type DatabaseEnv struct {
 	Password string `env:"DATABASE_PASSWORD"`

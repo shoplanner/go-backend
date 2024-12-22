@@ -1,20 +1,27 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  db:
-    image: mongo:7.0.5
-    env_file:
-      - ./.env
+  redis:
+    image: redis/redis-stack-server:7.2.0-v6
     ports:
-      - '27017:27017'
+      - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
     volumes:
-      - ./mongo-data:/data/db
+      - ./redis_data:/data
+  dolt:
+    image: dolthub/dolt-sql-server
+    ports:
+      - 3306:3306
+    volumes:
+      - ./dolt:/var/lib/dolt
   shoplanner:
     build:
       context: .
     env_file:
       - ./.env
     depends_on:
-    - db
+      - dolt
+      - redis
     ports:
       - "3000:3000"

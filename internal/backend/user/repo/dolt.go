@@ -70,8 +70,9 @@ func (r *Repo) GetByID(ctx context.Context, userID id.ID[user.User]) (user.User,
 }
 
 func sqlcToUser(item sqlc.User, _ int) user.User {
+	userID, _ := uuid.Parse(item.ID)
 	return user.User{
-		ID:           id.ID[user.User]{UUID: uuid.MustParse(item.ID)},
+		ID:           id.ID[user.User]{UUID: userID},
 		Role:         user.Role(item.Role),
 		Login:        user.Login(item.Login),
 		PasswordHash: user.Hash(item.Hash),

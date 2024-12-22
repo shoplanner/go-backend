@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
 	"go-backend/internal/backend/auth"
@@ -23,6 +24,7 @@ import (
 	"go-backend/internal/backend/auth/repo"
 	"go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
+	productAPI "go-backend/internal/backend/product/api"
 	swaggerAPI "go-backend/internal/backend/swagger/api"
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
@@ -30,13 +32,17 @@ import (
 	"go-backend/pkg/hashing"
 )
 
-// @version	0.0.1
-// @title		ShoPlanner
-// @BasePath /api/v1
+const clientName = "shoplanner"
+
+// @version					0.0.1
+// @title						ShoPlanner
+// @BasePath					/api/v1
+// @securityDefinitions.apikey	ApiKeyAuth
+// @in							header
+// @name						Auth
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't load .env file")
+	if err := godotenv.Load(); err != nil {
+		log.Info().Err(err).Msg("can't load .env file")
 	}
 
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
@@ -81,6 +87,16 @@ func main() {
 		AllowNativePasswords: true,
 	}
 
+	redisCfg := redis.Options{
+		Network:    envCfg.Redis.Net,
+		Addr:       envCfg.Redis.Addr,
+		ClientName: clientName,
+		Username:   envCfg.Redis.User,
+		Password:   envCfg.Redis.Password,
+	}
+
+	redisClient := redis.NewClient(&redisCfg)
+
 	db, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to database")
@@ -98,8 +114,18 @@ func main() {
 	}
 
 	userDB := userRepo.NewRepo(db)
-	accessRepo := repo.NewTokenRepo[auth.AccessToken]()
-	refreshRepo := repo.NewTokenRepo[auth.RefreshToken]()
+	accessRepo := repo.NewRedisRepo[auth.AccessToken](redisClient)
+	refreshRepo := repo.NewRedisRepo[auth.RefreshToken](redisClient)
+
+	err = accessRepo.Init(ctx)
+	if err != nil {
+		log.Err(err).Send()
+	}
+
+	err = refreshRepo.Init(ctx)
+	if err != nil {
+		log.Err(err).Send()
+	}
 
 	// business logic
 
@@ -119,11 +145,13 @@ func main() {
 
 	jwtMiddleware := api.NewAuthMiddleware(authService)
 	apiGroup := swaggerAPI.Init(router)
-	api.RegisterREST(apiGroup, authService)
+	api.RegisterREST(apiGroup, authService, jwtMiddleware)
+
+	userAPI.RegisterREST(apiGroup, userService, jwtMiddleware)
 
 	apiGroup.Use(jwtMiddleware.Middleware())
 
-	userAPI.RegisterREST(apiGroup, userService)
+	productAPI.RegisterREST(apiGroup, nil)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil {

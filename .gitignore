@@ -1,6 +1,7 @@
 .env
 coverage.out
-bin/
+bin/**
 .idea
 *.lua
 dolt/**
+redis_data/**

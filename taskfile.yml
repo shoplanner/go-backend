@@ -11,7 +11,7 @@ tasks:
       - go generate ./...
   build:
     cmds:
-      - go build -o bin/backend cmd/backend/main.go
+      - go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
   lint:
     cmds:
       - golangci-lint run
