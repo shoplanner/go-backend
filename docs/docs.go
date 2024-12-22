@@ -15,6 +15,54 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/auth/login": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "login with existing user",
+                "operationId": "auth-login",
+                "parameters": [
+                    {
+                        "description": "creds",
+                        "name": "opts",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.Credentials"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "logout from session",
+                "operationId": "auth-logout",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/product": {
             "post": {
                 "consumes": [
@@ -263,33 +311,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/user/login": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "login with existing user",
-                "operationId": "user-login",
-                "parameters": [
-                    {
-                        "description": "creds",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/user.Options"
-                        }
-                    }
-                ],
-                "responses": {}
-            }
-        },
         "/user/register": {
             "post": {
                 "consumes": [
@@ -310,7 +331,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.Options"
+                            "$ref": "#/definitions/user.CreateOptions"
                         }
                     }
                 ],
@@ -319,6 +340,20 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "auth.Credentials": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
         "product.Options": {
             "type": "object",
             "properties": {
@@ -354,7 +389,7 @@ const docTemplate = `{
                 }
             }
         },
-        "user.Options": {
+        "user.CreateOptions": {
             "type": "object",
             "required": [
                 "password"

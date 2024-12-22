@@ -4,24 +4,36 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/sethvargo/go-envconfig"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Service ServiceCfg `yaml:"service"`
+	Service ListenerCfg `yaml:"listener"`
+	Auth    AuthCfg     `yaml:"auth"`
 }
 
-type ServiceCfg struct {
+type ListenerCfg struct {
 	Net  string `yaml:"net"`
 	Host string `yaml:"host"`
 	Port uint16 `yaml:"port"`
 }
 
+type AuthCfg struct {
+	RefreshTokenLiveTime time.Duration `yaml:"refresh_token_livetime"`
+	AccessTokenLiveTime  time.Duration `yaml:"access_token_livetime"`
+}
+
 type Env struct {
 	Database DatabaseEnv
 	Redis    RedisEnv
+	Auth     AuthEnv
+}
+
+type AuthEnv struct {
+	PrivateKey string `env:"AUTH_PRIVATE_KEY"`
 }
 
 type RedisEnv struct{}

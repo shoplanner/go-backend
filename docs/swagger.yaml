@@ -1,5 +1,14 @@
 basePath: /api/v1
 definitions:
+  auth.Credentials:
+    properties:
+      device_id:
+        type: string
+      login:
+        type: string
+      password:
+        type: string
+    type: object
   product.Options:
     properties:
       category:
@@ -23,7 +32,7 @@ definitions:
         type: array
         uniqueItems: true
     type: object
-  user.Options:
+  user.CreateOptions:
     properties:
       login:
         type: string
@@ -38,6 +47,37 @@ info:
   title: ShoPlanner
   version: 0.0.1
 paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      operationId: auth-login
+      parameters:
+      - description: creds
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/auth.Credentials'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      summary: login with existing user
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      operationId: auth-logout
+      responses:
+        "200":
+          description: OK
+      summary: logout from session
+      tags:
+      - Auth
   /product:
     post:
       consumes:
@@ -206,24 +246,6 @@ paths:
       summary: list all users
       tags:
       - User
-  /user/login:
-    post:
-      consumes:
-      - application/json
-      operationId: user-login
-      parameters:
-      - description: creds
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/user.Options'
-      produces:
-      - application/json
-      responses: {}
-      summary: login with existing user
-      tags:
-      - User
   /user/register:
     post:
       consumes:
@@ -235,7 +257,7 @@ paths:
         name: opts
         required: true
         schema:
-          $ref: '#/definitions/user.Options'
+          $ref: '#/definitions/user.CreateOptions'
       produces:
       - application/json
       responses: {}

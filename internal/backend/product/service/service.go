@@ -3,13 +3,12 @@ package service
 import (
 	"context"
 	"sync"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
 	"go-backend/internal/backend/product"
+	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 )
 
@@ -52,9 +51,9 @@ func (s *Service) Create(ctx context.Context, options product.Options) (product.
 
 	full := product.Product{
 		Options:   options,
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:        id.NewID[product.Product](),
+		CreatedAt: date.NewCreateDate[product.Product](),
+		UpdatedAt: date.NewUpdateDate[product.Product](),
 	}
 
 	return full, s.repo.Create(ctx, full)

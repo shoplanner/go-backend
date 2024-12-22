@@ -22,6 +22,7 @@ type repo interface {
 	GetByLogin(context.Context, user.Login) (user.User, error)
 	Create(context.Context, user.User) error
 	GetAll(context.Context) ([]user.User, error)
+	GetByID(context.Context, id.ID[user.User]) (user.User, error)
 }
 
 type Service struct {
@@ -90,4 +91,16 @@ func (s *Service) GetAllUsers(ctx context.Context) ([]user.User, error) {
 	}
 
 	return users, nil
+}
+
+func (s *Service) GetByID(ctx context.Context, userID id.ID[user.User]) (user.User, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	model, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return model, fmt.Errorf("can't get user from storage: %w", err)
+	}
+
+	return model, nil
 }

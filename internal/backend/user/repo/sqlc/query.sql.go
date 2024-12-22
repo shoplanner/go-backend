@@ -75,6 +75,28 @@ func (q *Queries) GetAll(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const getByID = `-- name: GetByID :one
+SELECT
+id, role, login, hash
+FROM
+users
+WHERE
+id = ?
+LIMIT 1
+`
+
+func (q *Queries) GetByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Role,
+		&i.Login,
+		&i.Hash,
+	)
+	return i, err
+}
+
 const getByLogin = `-- name: GetByLogin :one
 SELECT
     id, role, login, hash

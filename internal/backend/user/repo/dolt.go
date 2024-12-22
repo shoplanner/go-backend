@@ -60,6 +60,15 @@ func (r *Repo) GetAll(ctx context.Context) ([]user.User, error) {
 	return lo.Map(models, sqlcToUser), nil
 }
 
+func (r *Repo) GetByID(ctx context.Context, userID id.ID[user.User]) (user.User, error) {
+	model, err := r.db.GetByID(ctx, userID.String())
+	if err != nil {
+		return sqlcToUser(model, 0), fmt.Errorf("can't get user %s from DoltDB: %w", userID, err)
+	}
+
+	return sqlcToUser(model, 0), nil
+}
+
 func sqlcToUser(item sqlc.User, _ int) user.User {
 	return user.User{
 		ID:           id.ID[user.User]{UUID: uuid.MustParse(item.ID)},

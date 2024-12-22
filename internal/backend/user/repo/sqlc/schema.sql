@@ -1,7 +1,7 @@
 -- name:  create :one
-CREATETABLEusers(
-    idVARCHAR(36)PRIMARYKEY,
-    roleINTNOTNULL,
-    loginTEXTNOTNULLUNIQUE,
-    hashTEXTNOTNULL
+CREATE TABLE users (
+    id varchar(36) PRIMARY KEY,
+    role int NOT NULL,
+    login text NOT NULL UNIQUE,
+    hash text NOT NULL
 );

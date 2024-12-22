@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/user"
 	"go-backend/internal/backend/user/service"
 	"go-backend/pkg/myerr"
@@ -21,7 +22,7 @@ func RegisterREST(r *gin.RouterGroup, userService *service.Service) {
 
 	h := &Handler{service: userService}
 
-	group.GET("/", h.GetAll)
+	group.GET("/", api.NewRoleMiddleware(user.RoleAdmin), h.GetAll)
 	group.POST("/register", h.Register)
 }
 

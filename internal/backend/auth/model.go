@@ -4,26 +4,62 @@ import (
 	"time"
 
 	"go-backend/internal/backend/user"
+	"go-backend/pkg/id"
 )
 
 //go:generate go-enum --marshal --names --values
 
+// ENUM(active=1,revoked)
+type TokenStatus int32
+
 type Credentials struct {
 	Login    user.Login `json:"login"`
 	Password string     `json:"password"`
-	DeviceID string     `json:"device_id"`
+	DeviceID DeviceID   `json:"device_id"`
 }
 
-type AccessToken string
+type RefreshToken struct {
+	RefreshTokenOptions
 
-type RefreshToken string
-
-// ENUM(Bearer=1)
-type TokenType int
-
-type Token struct {
-	AccessToken  AccessToken   `json:"access_token"`
-	RefreshToken RefreshToken  `json:"refresh_token"`
-	Type         TokenType     `json:"type"`
-	ExpiresIn    time.Duration `json:"expires_in"`
+	SignedString EncodedRefreshToken
+	State        TokenState
 }
+
+type RefreshTokenOptions struct {
+	TokenID[RefreshToken]
+
+	Expires  time.Time
+	IssuedAt time.Time
+}
+
+type AccessTokenOptions struct {
+	TokenID[AccessToken]
+
+	Role     user.Role
+	Expires  time.Time
+	IssuedAt time.Time
+}
+
+type TokenID[T any] struct {
+	ID       id.ID[T]
+	UserID   id.ID[user.User]
+	DeviceID DeviceID
+}
+
+type AccessToken struct {
+	AccessTokenOptions
+
+	SignedString EncodedAccessToken
+	State        TokenState
+}
+
+type TokenState struct {
+	Status TokenStatus
+}
+
+type (
+	EncodedAccessToken  string
+	EncodedRefreshToken string
+)
+
+type DeviceID string

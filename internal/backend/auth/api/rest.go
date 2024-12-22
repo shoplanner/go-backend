@@ -9,14 +9,21 @@ import (
 	"go-backend/internal/backend/auth/service"
 )
 
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	Type         string `json:"type"`
+	Expires      string `json:"expires"`
+}
+
 type Handler struct {
 	service *service.Service
 }
 
-func RegisterREST(r *gin.RouterGroup, userService *service.Service) {
+func RegisterREST(r *gin.RouterGroup, authService *service.Service) {
 	group := r.Group("/auth")
 
-	h := &Handler{service: userService}
+	h := &Handler{service: authService}
 
 	group.POST("/login", h.Login)
 	group.POST("/logout", h.Logout)
@@ -38,13 +45,18 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	model, err := h.service.Login(c, opts)
+	access, refresh, err := h.service.Login(c, opts)
 	if err != nil {
 		c.String(http.StatusForbidden, "auth error")
 		return
 	}
 
-	c.JSON(http.StatusOK, model)
+	c.JSON(http.StatusOK, TokenResponse{
+		AccessToken:  string(access.SignedString),
+		RefreshToken: string(refresh.SignedString),
+		Type:         "Bearer",
+		Expires:      access.Expires.UTC().String(),
+	})
 }
 
 //	@Summary	logout from session

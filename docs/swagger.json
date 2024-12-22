@@ -7,6 +7,54 @@
     },
     "basePath": "/api/v1",
     "paths": {
+        "/auth/login": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "login with existing user",
+                "operationId": "auth-login",
+                "parameters": [
+                    {
+                        "description": "creds",
+                        "name": "opts",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.Credentials"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "logout from session",
+                "operationId": "auth-logout",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/product": {
             "post": {
                 "consumes": [
@@ -255,33 +303,6 @@
                 }
             }
         },
-        "/user/login": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "login with existing user",
-                "operationId": "user-login",
-                "parameters": [
-                    {
-                        "description": "creds",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/user.Options"
-                        }
-                    }
-                ],
-                "responses": {}
-            }
-        },
         "/user/register": {
             "post": {
                 "consumes": [
@@ -302,7 +323,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.Options"
+                            "$ref": "#/definitions/user.CreateOptions"
                         }
                     }
                 ],
@@ -311,6 +332,20 @@
         }
     },
     "definitions": {
+        "auth.Credentials": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
         "product.Options": {
             "type": "object",
             "properties": {
@@ -346,7 +381,7 @@
                 }
             }
         },
-        "user.Options": {
+        "user.CreateOptions": {
             "type": "object",
             "required": [
                 "password"

@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"net"
@@ -12,13 +15,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"go-backend/internal/backend/auth"
+	"go-backend/internal/backend/auth/api"
+	"go-backend/internal/backend/auth/provider"
+	"go-backend/internal/backend/auth/repo"
+	"go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
-	"go-backend/internal/backend/swagger"
-	api1 "go-backend/internal/backend/user/api"
-	"go-backend/internal/backend/user/repo"
+	swaggerAPI "go-backend/internal/backend/swagger/api"
+	userAPI "go-backend/internal/backend/user/api"
+	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
 	"go-backend/pkg/hashing"
 )
@@ -50,8 +57,6 @@ func main() {
 	}
 	log.Info().Any("config", appCfg).Msg("Config loaded")
 
-	apiGroup := swagger.Init(router)
-
 	listener, err := net.Listen(appCfg.Service.Net, fmt.Sprintf("%s:%d", appCfg.Service.Host, appCfg.Service.Port))
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't start listening")
@@ -63,6 +68,10 @@ func main() {
 	}
 	log.Debug().Any("env", envCfg).Msg("loaded env")
 
+	authPrivateKey, err := decodeECDSA(envCfg.Auth.PrivateKey)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
+	}
 	doltCfg := mysql.Config{
 		User:                 envCfg.Database.User,
 		Passwd:               envCfg.Database.Password,
@@ -71,8 +80,6 @@ func main() {
 		DBName:               envCfg.Database.Name,
 		AllowNativePasswords: true,
 	}
-
-	redisClient := redis.NewClient()
 
 	db, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
@@ -90,9 +97,33 @@ func main() {
 		log.Error().Err(err).Msg("creating table")
 	}
 
-	userDB := repo.NewRepo(db)
+	userDB := userRepo.NewRepo(db)
+	accessRepo := repo.NewTokenRepo[auth.AccessToken]()
+	refreshRepo := repo.NewTokenRepo[auth.RefreshToken]()
+
+	// business logic
+
 	userService := userService.NewService(userDB, hashing.HashMaster{})
-	api1.RegisterREST(apiGroup, userService)
+	authService := service.New(
+		userService,
+		refreshRepo,
+		accessRepo,
+		provider.NewJWT(authPrivateKey),
+		service.Options{
+			AccessTokenExpires:  appCfg.Auth.AccessTokenLiveTime,
+			RefreshTokenExpires: appCfg.Auth.RefreshTokenLiveTime,
+		},
+	)
+
+	// API
+
+	jwtMiddleware := api.NewAuthMiddleware(authService)
+	apiGroup := swaggerAPI.Init(router)
+	api.RegisterREST(apiGroup, authService)
+
+	apiGroup.Use(jwtMiddleware.Middleware())
+
+	userAPI.RegisterREST(apiGroup, userService)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil {
@@ -108,4 +139,11 @@ func main() {
 	if err = listener.Close(); err != nil {
 		log.Error().Err(err).Msg("closing listener cause error")
 	}
+}
+
+func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemEncoded))
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+
+	return privateKey.(*ecdsa.PrivateKey), err
 }
