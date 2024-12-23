@@ -43,9 +43,9 @@ type AccessTokenOptions struct {
 }
 
 type TokenID[T any] struct {
-	ID       id.ID[T]
-	UserID   id.ID[user.User]
-	DeviceID DeviceID
+	ID       id.ID[T]         `json:"id"`
+	UserID   id.ID[user.User] `json:"user_id"`
+	DeviceID DeviceID         `json:"device_id"`
 }
 
 type AccessToken struct {
@@ -56,7 +56,7 @@ type AccessToken struct {
 }
 
 type TokenState struct {
-	Status TokenStatus
+	Status TokenStatus `json:"status"`
 }
 
 type (

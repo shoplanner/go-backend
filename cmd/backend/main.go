@@ -93,6 +93,7 @@ func main() {
 		ClientName: clientName,
 		Username:   envCfg.Redis.User,
 		Password:   envCfg.Redis.Password,
+		Protocol:   2,
 	}
 
 	redisClient := redis.NewClient(&redisCfg)
