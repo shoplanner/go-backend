@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
+	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
 
 	"go-backend/internal/backend/auth"
@@ -87,16 +87,12 @@ func main() {
 		AllowNativePasswords: true,
 	}
 
-	redisCfg := redis.Options{
-		Network:    envCfg.Redis.Net,
-		Addr:       envCfg.Redis.Addr,
-		ClientName: clientName,
-		Username:   envCfg.Redis.User,
-		Password:   envCfg.Redis.Password,
-		Protocol:   2,
-	}
-
-	redisClient := redis.NewClient(&redisCfg)
+	aredisClient, err := rueidis.NewClient(rueidis.ClientOption{
+		Username:    envCfg.Redis.User,
+		Password:    envCfg.Redis.Password,
+		InitAddress: []string{envCfg.Redis.Addr},
+		ClientName:  clientName,
+	})
 
 	db, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
@@ -115,8 +111,8 @@ func main() {
 	}
 
 	userDB := userRepo.NewRepo(db)
-	accessRepo := repo.NewRedisRepo[auth.AccessToken](redisClient)
-	refreshRepo := repo.NewRedisRepo[auth.RefreshToken](redisClient)
+	accessRepo := repo.NewRedisRepo[auth.AccessToken](aredisClient)
+	refreshRepo := repo.NewRedisRepo[auth.RefreshToken](aredisClient)
 
 	err = accessRepo.Init(ctx)
 	if err != nil {

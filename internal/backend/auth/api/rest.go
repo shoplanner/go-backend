@@ -72,7 +72,7 @@ func (h *Handler) Login(c *gin.Context) {
 // @Router		/auth/logout [post]
 // @Accept		json
 // @Success	200
-// @Security	ApiAuthKey
+// @Security	ApiKeyAuth
 func (h *Handler) Logout(c *gin.Context) {
 	err := h.service.Logout(c, GetUserID(c), GetDeviceID(c))
 	if err != nil {
