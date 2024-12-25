@@ -4,6 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"github.com/samber/lo"
+
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/user"
@@ -11,13 +18,6 @@ import (
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 	"go-backend/pkg/ph"
-	"maps"
-	"slices"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 )
 
 type repo interface {
@@ -25,7 +25,7 @@ type repo interface {
 	GetAndUpdate(
 		ctx context.Context,
 		id id.ID[shopmap.ShopMap],
-		updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
+		updateFunc func(shopmap.ShopMap) shopmap.ShopMap,
 	) (shopmap.ShopMap, error)
 	Delete(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
 	GetByID(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
@@ -69,7 +69,7 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], cfg shop
 }
 
 func (s *Service) AddViewerList(ctx context.Context, mapID id.ID[shopmap.ShopMap], viewerIDs []id.ID[user.User]) (shopmap.ShopMap, error) {
-	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) shopmap.ShopMap {
 		shopMap.ViewerIDList = append(shopMap.ViewerIDList, viewerIDs...)
 
 		if err := s.validate(ctx, shopMap); err != nil {
@@ -162,15 +162,12 @@ func (s *Service) repoDelete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) 
 func (s *Service) repoGetAndUpdate(
 	ctx context.Context,
 	mapID id.ID[shopmap.ShopMap],
-	updateFunc func(context.Context, shopmap.ShopMap) (shopmap.ShopMap, error),
+	updateFunc func(shopmap.ShopMap) shopmap.ShopMap,
 ) (shopmap.ShopMap, error) {
-	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, func(ctx context.Context, sm shopmap.ShopMap) (shopmap.ShopMap, error) {
-		sm, err := updateFunc(ctx, sm)
-		if err != nil {
-			return sm, err
-		}
+	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, func(sm shopmap.ShopMap) shopmap.ShopMap {
+		sm = updateFunc(sm)
 		sm.UpdatedAt.Update()
-		return sm, nil
+		return sm
 	})
 	if err != nil {
 		return shopMap, fmt.Errorf("shop map service: can't update shop map %s: %w", mapID, err)
