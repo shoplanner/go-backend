@@ -4,14 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog"
-	"github.com/samber/lo"
-
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/user"
@@ -19,6 +11,13 @@ import (
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 	"go-backend/pkg/ph"
+	"maps"
+	"slices"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 )
 
 type repo interface {
@@ -40,12 +39,15 @@ type userService interface {
 type Service struct {
 	users     userService
 	repo      repo
-	log       *zerolog.Logger
 	validator *validator.Validate
 }
 
-func NewService() *Service {
-	s := &Service{validator: validator.New()}
+func NewService(userService userService, repo repo) *Service {
+	s := &Service{
+		users:     userService,
+		repo:      repo,
+		validator: validator.New(),
+	}
 	s.initValidator()
 	return s
 }

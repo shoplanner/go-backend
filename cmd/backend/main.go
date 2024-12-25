@@ -8,6 +8,15 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"go-backend/internal/backend/auth"
+	authAPI "go-backend/internal/backend/auth/api"
+	"go-backend/internal/backend/auth/provider"
+	authService "go-backend/internal/backend/auth/service"
+	"go-backend/internal/backend/config"
+	"go-backend/internal/backend/shopmap/api"
+	"go-backend/internal/backend/shopmap/repo"
+	"go-backend/internal/backend/shopmap/service"
+	"go-backend/pkg/hashing"
 	"net"
 	"os/signal"
 	"syscall"
@@ -17,19 +26,15 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
+	"github.com/uptrace/bun"
 
-	"go-backend/internal/backend/auth"
-	"go-backend/internal/backend/auth/api"
-	"go-backend/internal/backend/auth/provider"
-	"go-backend/internal/backend/auth/repo"
-	"go-backend/internal/backend/auth/service"
-	"go-backend/internal/backend/config"
+	authRepo "go-backend/internal/backend/auth/repo"
+
 	productAPI "go-backend/internal/backend/product/api"
 	swaggerAPI "go-backend/internal/backend/swagger/api"
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
-	"go-backend/pkg/hashing"
 )
 
 const clientName = "shoplanner"
@@ -111,8 +116,12 @@ func main() {
 	}
 
 	userDB := userRepo.NewRepo(db)
-	accessRepo := repo.NewRedisRepo[auth.AccessToken](aredisClient)
-	refreshRepo := repo.NewRedisRepo[auth.RefreshToken](aredisClient)
+	accessRepo := authRepo.NewRedisRepo[auth.AccessToken](aredisClient)
+	refreshRepo := authRepo.NewRedisRepo[auth.RefreshToken](aredisClient)
+	shopMapRepo, err := repo.NewShopMapRepo(ctx, &bun.DB{})
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize shop map repo")
+	}
 
 	err = accessRepo.Init(ctx)
 	if err != nil {
@@ -127,28 +136,30 @@ func main() {
 	// business logic
 
 	userService := userService.NewService(userDB, hashing.HashMaster{})
-	authService := service.New(
+	authService := authService.New(
 		userService,
 		refreshRepo,
 		accessRepo,
 		provider.NewJWT(authPrivateKey),
-		service.Options{
+		authService.Options{
 			AccessTokenExpires:  appCfg.Auth.AccessTokenLiveTime,
 			RefreshTokenExpires: appCfg.Auth.RefreshTokenLiveTime,
 		},
 	)
+	shopMapService := service.NewService(userService, shopMapRepo)
 
 	// API
 
-	jwtMiddleware := api.NewAuthMiddleware(authService)
+	jwtMiddleware := authAPI.NewAuthMiddleware(authService)
 	apiGroup := swaggerAPI.Init(router)
-	api.RegisterREST(apiGroup, authService, jwtMiddleware)
+	authAPI.RegisterREST(apiGroup, authService, jwtMiddleware)
 
 	userAPI.RegisterREST(apiGroup, userService, jwtMiddleware)
 
 	apiGroup.Use(jwtMiddleware.Middleware())
 
 	productAPI.RegisterREST(apiGroup, nil)
+	api.RegisterREST(apiGroup, shopMapService)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil {
