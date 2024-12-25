@@ -27,6 +27,7 @@ Can be done ordinary or via .env file.
 
 Example of .env file for given docker compose with default creds
 ```bash
+DATABASE_HOST="dolt:3306"
 DATABASE_PASSWORD=""
 DATABASE_USER="root"
 DATABASE_NAME="shoplanner"
