@@ -53,7 +53,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiAuthKey": []
+                        "ApiKeyAuth": []
                     }
                 ],
                 "consumes": [
@@ -185,6 +185,11 @@ const docTemplate = `{
         },
         "/shopmap": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -212,6 +217,11 @@ const docTemplate = `{
         },
         "/shopmap/id/{id}": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -231,6 +241,11 @@ const docTemplate = `{
                 "responses": {}
             },
             "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -263,6 +278,11 @@ const docTemplate = `{
                 "responses": {}
             },
             "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -285,6 +305,11 @@ const docTemplate = `{
         },
         "/shopmap/id/{id}/reorder": {
             "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -322,6 +347,11 @@ const docTemplate = `{
         },
         "/shopmap/user": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -445,6 +475,7 @@ const docTemplate = `{
             "properties": {
                 "categories": {
                     "type": "array",
+                    "uniqueItems": true,
                     "items": {
                         "type": "string"
                     }

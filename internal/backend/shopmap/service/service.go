@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 
 	"go-backend/internal/backend/product"
@@ -25,7 +24,7 @@ type repo interface {
 	GetAndUpdate(
 		ctx context.Context,
 		id id.ID[shopmap.ShopMap],
-		updateFunc func(shopmap.ShopMap) shopmap.ShopMap,
+		updateFunc func(shopmap.ShopMap) (shopmap.ShopMap, error),
 	) (shopmap.ShopMap, error)
 	Delete(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
 	GetByID(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
@@ -33,7 +32,7 @@ type repo interface {
 }
 
 type userService interface {
-	IsExists(ctx context.Context, userID uuid.UUID) error
+	GetByID(ctx context.Context, userID id.ID[user.User]) (user.User, error)
 }
 
 type Service struct {
@@ -48,7 +47,6 @@ func NewService(userService userService, repo repo) *Service {
 		repo:      repo,
 		validator: validator.New(),
 	}
-	s.initValidator()
 	return s
 }
 
@@ -61,18 +59,29 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], cfg shop
 		UpdatedAt: date.NewUpdateDate[shopmap.ShopMap](),
 	}
 
-	if err := s.validate(ctx, shopMap); err != nil {
+	if err := s.validate(shopMap); err != nil {
 		return shopmap.ShopMap{}, err
 	}
 
 	return shopMap, s.repoCreate(ctx, shopMap)
 }
 
-func (s *Service) AddViewerList(ctx context.Context, mapID id.ID[shopmap.ShopMap], viewerIDs []id.ID[user.User]) (shopmap.ShopMap, error) {
-	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) shopmap.ShopMap {
+func (s *Service) AddViewerList(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	viewerIDs []id.ID[user.User],
+) (shopmap.ShopMap, error) {
+	for _, viewerID := range viewerIDs {
+		_, err := s.users.GetByID(ctx, viewerID)
+		if err != nil {
+			return shopmap.ShopMap{}, fmt.Errorf("can't get user %s: %w", viewerID, err)
+		}
+	}
+
+	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		shopMap.ViewerIDList = append(shopMap.ViewerIDList, viewerIDs...)
 
-		if err := s.validate(ctx, shopMap); err != nil {
+		if err := s.validate(shopMap); err != nil {
 			return shopMap, err
 		}
 
@@ -85,7 +94,7 @@ func (s *Service) RemoveViewerList(
 	mapID id.ID[shopmap.ShopMap],
 	viewerIDs []id.ID[user.User],
 ) (shopmap.ShopMap, error) {
-	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		var errs []error
 
 		toDelete := lo.SliceToMap(viewerIDs, ph.EmptyStruct)
@@ -107,18 +116,40 @@ func (s *Service) RemoveViewerList(
 			return lo.HasKey(toDelete, viewerID)
 		})
 
-		return shopMap, s.validate(ctx, shopMap)
+		return shopMap, s.validate(shopMap)
 	})
 }
 
-func (s *Service) DeleteMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userID id.ID[user.User]) (shopmap.ShopMap, error) {
+func (s *Service) DeleteMap(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	userID id.ID[user.User],
+) (shopmap.ShopMap, error) {
+	shopMap, err := s.repo.GetByID(ctx, mapID)
+	if err != nil {
+		return shopMap, fmt.Errorf("can't get information about shop map %s: %w", mapID, err)
+	}
+
+	if shopMap.OwnerID != userID {
+		return shopMap, fmt.Errorf("%w: only owner can delete shop map %s", myerr.ErrForbidden, mapID)
+	}
+
 	return s.repoDelete(ctx, mapID)
 }
 
-func (s *Service) UpdateMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userId id.ID[user.User], cfg shopmap.Options) (shopmap.ShopMap, error) {
-	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+func (s *Service) UpdateMap(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	userID id.ID[user.User],
+	cfg shopmap.Options,
+) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		if userID != shopMap.OwnerID {
+			return shopMap, fmt.Errorf("%w: only owner can delete shop map", myerr.ErrForbidden)
+		}
+
 		shopMap.Options = cfg
-		return shopMap, s.validate(ctx, shopMap)
+		return shopMap, s.validate(shopMap)
 	})
 }
 
@@ -130,9 +161,18 @@ func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]s
 	return s.repoGetByUser(ctx, userID)
 }
 
-func (s *Service) ReorderMap(ctx context.Context, mapID id.ID[shopmap.ShopMap], userID id.ID[user.User], categories []product.Category) (shopmap.ShopMap, error) {
-	return s.repoGetAndUpdate(ctx, mapID, func(ctx context.Context, shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
-		if maps.Equal(lo.CountValues(shopMap.CategoryList), lo.CountValues(categories)) {
+func (s *Service) ReorderMap(
+	ctx context.Context,
+	mapID id.ID[shopmap.ShopMap],
+	userID id.ID[user.User],
+	categories []product.Category,
+) (shopmap.ShopMap, error) {
+	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		if userID != shopMap.OwnerID {
+			return shopMap, fmt.Errorf("%w: only owner can change order", myerr.ErrForbidden)
+		}
+
+		if !maps.Equal(lo.CountValues(shopMap.CategoryList), lo.CountValues(categories)) {
 			return shopMap, fmt.Errorf("%w: only order changes accepted", myerr.ErrInvalidArgument)
 		}
 
@@ -162,12 +202,15 @@ func (s *Service) repoDelete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) 
 func (s *Service) repoGetAndUpdate(
 	ctx context.Context,
 	mapID id.ID[shopmap.ShopMap],
-	updateFunc func(shopmap.ShopMap) shopmap.ShopMap,
+	updateFunc func(shopmap.ShopMap) (shopmap.ShopMap, error),
 ) (shopmap.ShopMap, error) {
-	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, func(sm shopmap.ShopMap) shopmap.ShopMap {
-		sm = updateFunc(sm)
+	shopMap, err := s.repo.GetAndUpdate(ctx, mapID, func(sm shopmap.ShopMap) (shopmap.ShopMap, error) {
+		sm, err := updateFunc(sm)
+		if err != nil {
+			return sm, err
+		}
 		sm.UpdatedAt.Update()
-		return sm
+		return sm, nil
 	})
 	if err != nil {
 		return shopMap, fmt.Errorf("shop map service: can't update shop map %s: %w", mapID, err)

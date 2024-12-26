@@ -17,7 +17,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
-	"github.com/uptrace/bun"
 
 	"go-backend/internal/backend/auth"
 	authAPI "go-backend/internal/backend/auth/api"
@@ -98,12 +97,12 @@ func main() {
 		ClientName:  clientName,
 	})
 
-	db, err := sql.Open("mysql", doltCfg.FormatDSN())
+	sqlDB, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to database")
 	}
 
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
+	_, err = sqlDB.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
     id varchar(36) PRIMARY KEY,
     role int NOT NULL,
     login text NOT NULL,
@@ -114,12 +113,12 @@ func main() {
 		log.Error().Err(err).Msg("creating table")
 	}
 
-	userDB := userRepo.NewRepo(db)
+	userDB := userRepo.NewRepo(sqlDB)
 	accessRepo := authRepo.NewRedisRepo[auth.AccessToken](aredisClient)
 	refreshRepo := authRepo.NewRedisRepo[auth.RefreshToken](aredisClient)
-	shopMapRepo, err := repo.NewShopMapRepo(ctx, &bun.DB{})
+	shopMapRepo, err := repo.NewShopMapRepo(ctx, sqlDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize shop map repo")
+		log.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
 
 	err = accessRepo.Init(ctx)

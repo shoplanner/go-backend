@@ -9,18 +9,20 @@ import (
 	"github.com/samber/lo"
 
 	"go-backend/internal/backend/user"
-	"go-backend/internal/backend/user/repo/sqlc"
+	"go-backend/internal/backend/user/repo/sqlgen"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 	"go-backend/pkg/mymysql"
 )
 
+//go:generate $SQLC_HELPER
+
 type Repo struct {
-	db *sqlc.Queries
+	db *sqlgen.Queries
 }
 
-func NewRepo(conn sqlc.DBTX) *Repo {
-	return &Repo{db: sqlc.New(conn)}
+func NewRepo(conn sqlgen.DBTX) *Repo {
+	return &Repo{db: sqlgen.New(conn)}
 }
 
 func (r *Repo) GetByLogin(ctx context.Context, login user.Login) (user.User, error) {
@@ -33,7 +35,7 @@ func (r *Repo) GetByLogin(ctx context.Context, login user.Login) (user.User, err
 }
 
 func (r *Repo) Create(ctx context.Context, model user.User) error {
-	_, err := r.db.CreateUser(ctx, sqlc.CreateUserParams{
+	_, err := r.db.CreateUser(ctx, sqlgen.CreateUserParams{
 		ID:    model.ID.String(),
 		Login: string(model.Login),
 		Hash:  string(model.PasswordHash),
@@ -69,7 +71,7 @@ func (r *Repo) GetByID(ctx context.Context, userID id.ID[user.User]) (user.User,
 	return sqlcToUser(model, 0), nil
 }
 
-func sqlcToUser(item sqlc.User, _ int) user.User {
+func sqlcToUser(item sqlgen.User, _ int) user.User {
 	userID, _ := uuid.Parse(item.ID)
 	return user.User{
 		ID:           id.ID[user.User]{UUID: userID},

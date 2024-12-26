@@ -45,7 +45,7 @@
             "post": {
                 "security": [
                     {
-                        "ApiAuthKey": []
+                        "ApiKeyAuth": []
                     }
                 ],
                 "consumes": [
@@ -177,6 +177,11 @@
         },
         "/shopmap": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -204,6 +209,11 @@
         },
         "/shopmap/id/{id}": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -223,6 +233,11 @@
                 "responses": {}
             },
             "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -255,6 +270,11 @@
                 "responses": {}
             },
             "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -277,6 +297,11 @@
         },
         "/shopmap/id/{id}/reorder": {
             "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -314,6 +339,11 @@
         },
         "/shopmap/user": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -437,6 +467,7 @@
             "properties": {
                 "categories": {
                     "type": "array",
+                    "uniqueItems": true,
                     "items": {
                         "type": "string"
                     }

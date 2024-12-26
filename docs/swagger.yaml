@@ -42,6 +42,7 @@ definitions:
         items:
           type: string
         type: array
+        uniqueItems: true
       viewers_id:
         items:
           type: object
@@ -94,7 +95,7 @@ paths:
         "200":
           description: OK
       security:
-      - ApiAuthKey: []
+      - ApiKeyAuth: []
       summary: logout from session
       tags:
       - Auth
@@ -188,6 +189,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Creates new shop map
       tags:
       - ShopMap
@@ -203,6 +206,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Deletes shop map
       tags:
       - ShopMap
@@ -216,6 +221,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Get existing shop map by it's ID
       tags:
       - ShopMap
@@ -238,6 +245,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: fully updates shop map
       tags:
       - ShopMap
@@ -263,6 +272,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: only reorder categories in given shop map
       tags:
       - ShopMap
@@ -272,6 +283,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Get shop maps of current logged user
       tags:
       - ShopMap

@@ -1,16 +1,19 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
+	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/shopmap/service"
-	"go-backend/internal/backend/user"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 type Handler struct {
@@ -40,6 +43,7 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 // @Param		config	body	shopmap.Options	true	"shop map to create"
 // @Produce	json
 // @Router		/shopmap [post]
+// @Security ApiKeyAuth
 func (h *Handler) CreateMap(ctx *gin.Context) {
 	var shopMapCfg shopmap.Options
 
@@ -47,10 +51,10 @@ func (h *Handler) CreateMap(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, "can't decode request")
 		return
 	}
-	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-	shopMap, err := h.service.Create(ctx, userID, shopMapCfg)
+	shopMap, err := h.service.Create(ctx, api.GetUserID(ctx), shopMapCfg)
 	if err != nil {
-		ctx.String(http.StatusInternalServerError, "can't create shop map due to internal error")
+		log.Err(err).Msg("creating shop map")
+		ctx.String(http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -64,6 +68,7 @@ func (h *Handler) CreateMap(ctx *gin.Context) {
 // @Param		id	query	string	false	"id of shop map"
 // @Produce	json
 // @Router		/shopmap/id/{id} [get]
+// @Security ApiKeyAuth
 func (h *Handler) GetByID(ctx *gin.Context) {
 	mapID, err := uuid.Parse(ctx.Query("id"))
 	if err != nil {
@@ -85,11 +90,10 @@ func (h *Handler) GetByID(ctx *gin.Context) {
 //
 // @Tags		ShopMap
 // @Produce	json
+// @Security ApiKeyAuth
 // @Router		/shopmap/user [get]
 func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
-	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-
-	shopMapList, err := h.service.GetByUserID(ctx, userID)
+	shopMapList, err := h.service.GetByUserID(ctx, api.GetUserID(ctx))
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "internal error")
 		return
@@ -104,6 +108,7 @@ func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
 // @Param		id	query	string	true	"id of shop map"
 // @Tags		ShopMap
 // @Produce	json
+// @Security ApiKeyAuth
 // @Router		/shopmap/id/{id} [delete]
 func (h *Handler) DeleteMap(ctx *gin.Context) {
 	mapID, err := uuid.Parse(ctx.Query("id"))
@@ -111,10 +116,13 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, "id must be valid uuid")
 		return
 	}
-	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-	shopMap, err := h.service.DeleteMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID)
-	if err != nil {
-		ctx.String(http.StatusForbidden, "map can be deleted only by owner")
+	shopMap, err := h.service.DeleteMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx))
+	if errors.Is(err, myerr.ErrForbidden) {
+		ctx.String(http.StatusForbidden, err.Error())
+		return
+	} else if err != nil {
+		log.Err(err).Msg("deleting shop map")
+		ctx.String(http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -130,6 +138,7 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 // @Produce	json
 // @Accept		json
 // @Router		/shopmap/id/{id} [put]
+// @Security ApiKeyAuth
 func (h *Handler) UpdateMap(ctx *gin.Context) {
 	var shopMapCfg shopmap.Options
 	mapID, err := uuid.Parse(ctx.Query("id"))
@@ -138,13 +147,12 @@ func (h *Handler) UpdateMap(ctx *gin.Context) {
 		return
 	}
 
-	if err := ctx.BindJSON(&shopMapCfg); err != nil {
+	if err = ctx.BindJSON(&shopMapCfg); err != nil {
 		ctx.String(http.StatusBadRequest, "can't decode shop map")
 		return
 	}
 
-	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-	shopMap, err := h.service.UpdateMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID, shopMapCfg)
+	shopMap, err := h.service.UpdateMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx), shopMapCfg)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "can't update shop map: %s", err.Error())
 		return
@@ -166,6 +174,7 @@ type CategoryList struct {
 // @Accept		json
 // @Produce	json
 // @Router		/shopmap/id/{id}/reorder [patch]
+// @Security ApiKeyAuth
 func (h *Handler) ReorderMap(ctx *gin.Context) {
 	var categories []product.Category
 
@@ -175,14 +184,13 @@ func (h *Handler) ReorderMap(ctx *gin.Context) {
 		return
 	}
 
-	if err := ctx.BindJSON(&categories); err != nil {
+	if err = ctx.BindJSON(&categories); err != nil {
 		ctx.String(http.StatusBadRequest, "can't decode request")
 		return
 	}
-	userID := id.ID[user.User]{UUID: uuid.MustParse(ctx.GetString("userId"))}
-	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, userID, categories)
+	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx), categories)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, "error: %w", err.Error())
+		ctx.String(http.StatusBadRequest, "error: %s", err.Error())
 		return
 	}
 

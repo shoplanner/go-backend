@@ -1,15 +1,21 @@
 version: "3"
 
+env:
+  PROJECT_ROOT:
+    sh: pwd
+  SQLC_HELPER: "{{.PROJECT_ROOT}}/tools/sqlc_helper.sh"
 tasks:
   deps:
     cmds:
       - go install github.com/swaggo/swag/cmd/swag@latest
       - go install github.com/abice/go-enum@latest
+      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
   generate:
     cmds:
       - swag init -g cmd/backend/main.go
       - go generate ./...
   build:
+    deps: [generate]
     cmds:
       - go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
   lint:
