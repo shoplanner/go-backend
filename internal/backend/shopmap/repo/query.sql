@@ -1,17 +1,12 @@
--- name: GetByID :many
+-- name: GetByID :one
 SELECT
-    m.id,
-    m.owner_id,
-    m.created_at,
-    m.updated_at,
-    v.user_id,
-    c.category
+    *
 FROM
     shop_maps AS m
-    JOIN shop_map_categories AS c ON m.id = c.map_id
-    JOIN shop_map_viewers AS v ON m.id = v.map_id
 WHERE
-    m.id = ?;
+    m.id = ?
+LIMIT
+    1;
 
 -- name: GetByUserID :many
 SELECT
@@ -27,6 +22,23 @@ FROM
     JOIN shop_map_viewers AS v ON m.id = v.map_id
 WHERE
     v.user_id = ?;
+
+-- name: GetCategoriesByID :many
+SELECT
+    number,
+    category
+FROM
+    shop_map_categories
+WHERE
+    map_id = ?;
+
+-- name: GetViewersByMapID :many
+SELECT
+    user_id
+FROM
+    shop_map_viewers
+WHERE
+    map_id = ?;
 
 -- name: CreateShopMap :exec
 INSERT INTO

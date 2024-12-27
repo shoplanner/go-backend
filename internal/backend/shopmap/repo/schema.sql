@@ -13,7 +13,8 @@ CREATE TABLE shop_map_viewers (
 );
 
 CREATE TABLE shop_map_categories (
-    map_id varchar(36) NOT NULL,
+    map_id varchar(36) NOT NULL PRIMARY KEY,
+    number int UNSIGNED NOT NULL PRIMARY KEY,
     category varchar(255) NOT NULL,
     FOREIGN KEY(map_id) REFERENCES shop_map(id)
 )

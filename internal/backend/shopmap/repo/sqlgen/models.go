@@ -17,6 +17,7 @@ type ShopMap struct {
 
 type ShopMapCategory struct {
 	MapID    string
+	Number   uint32
 	Category string
 }
 

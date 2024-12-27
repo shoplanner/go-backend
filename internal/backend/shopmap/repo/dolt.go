@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"github.com/uptrace/bun"
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/shopmap/repo/sqlgen"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
+	"go-backend/pkg/god"
 	"go-backend/pkg/id"
 )
 
@@ -92,60 +93,119 @@ func (s *ShopMapRepo) GetAndUpdate(
 	mapID id.ID[shopmap.ShopMap],
 	updateFunc func(shopmap.ShopMap) (shopmap.ShopMap, error),
 ) (shopmap.ShopMap, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return shopmap.ShopMap{}, fmt.Errorf("can't start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	qtx := s.q.WithTx(tx)
+
+	model, err := s.getById(ctx, qtx, mapID)
+	if err != nil {
+		return model, err
+	}
+
+	model, err = updateFunc(model)
+	if err != nil {
+		return model, err
+	}
 }
 
 // GetByID implements service.repo.
 func (s *ShopMapRepo) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return shopmap.ShopMap{}, fmt.Errorf("can't start DoltDB transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	qtx := s.q.WithTx(tx)
+
+	model, err := s.getById(ctx, qtx, mapID)
+	if err != nil {
+		return model, err
+	}
+
+	return model, tx.Commit()
 }
 
 // GetByUserID implements service.repo.
 func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]shopmap.ShopMap, error) {
 }
 
-func entityToModelIdx(dao sqlgen.ShopMap, _ int) shopmap.ShopMap {
-	return shopmap.ShopMap{
+func (s *ShopMapRepo) getById(ctx context.Context, qtx *sqlgen.Queries, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
+	shopMap, err := qtx.GetByID(ctx, mapID.String())
+	if err != nil {
+		return shopmap.ShopMap{}, fmt.Errorf("can't get shop map %s: %w", mapID, err)
+	}
+
+	categories, err := qtx.GetCategoriesByID(ctx, mapID.String())
+	if err != nil {
+		return shopmap.ShopMap{}, fmt.Errorf("can't get shop map %s categories: %w", mapID, err)
+	}
+
+	viewers, err := qtx.GetViewersByMapID(ctx, mapID.String())
+	if err != nil {
+		return shopmap.ShopMap{}, fmt.Errorf("can't get shop map %s viewers", mapID, err)
+	}
+
+	return entityToModel(shopMap, categories, viewers), nil
+}
+
+func (s *ShopMapRepo) update(ctx context.Context, qtx *sqlgen.Queries, model shopmap.ShopMap, oldModel shopmap.ShopMap) error {
+	err := qtx.UpdateShopMap(ctx, sqlgen.UpdateShopMapParams{
+		OwnerID:   model.OwnerID.String(),
+		UpdatedAt: model.UpdatedAt.Time,
+		CreatedAt: model.CreatedAt.Time,
+		ID:        model.ID.String(),
+	})
+	if err != nil {
+		return fmt.Errorf("can't update shop map %s: %w", model.ID, err)
+	}
+
+
+}
+
+func entityToModel(shopMap sqlgen.ShopMap, categories []sqlgen.GetCategoriesByIDRow, viewers []string) shopmap.ShopMap {
+	model := shopmap.ShopMap{
 		Options: shopmap.Options{
-			CategoryList: lo.Map(dao.CategoryList, func(item CategoryDAO, index int) product.Category {
-				return product.Category(item.Category)
-			}),
-			ViewerIDList: lo.Map(dao.ViewerList, func(item ShopMapViewer, _ int) id.ID[user.User] {
-				return id.ID[user.User]{UUID: item.UserID}
+			CategoryList: make([]product.Category, len(categories)),
+			ViewerIDList: lo.Map(viewers, func(item string, _ int) id.ID[user.User] {
+				return id.ID[user.User]{UUID: god.Believe(uuid.Parse(item))}
 			}),
 		},
-		ID:        id.ID[shopmap.ShopMap]{UUID: dao.ID},
-		OwnerID:   id.ID[user.User]{UUID: dao.OwnerID},
-		CreatedAt: date.CreateDate[shopmap.ShopMap]{Time: dao.CreatedAt},
-		UpdatedAt: date.UpdateDate[shopmap.ShopMap]{Time: dao.UpdatedAt},
+		ID:        id.ID[shopmap.ShopMap]{UUID: god.Believe(uuid.Parse(shopMap.ID))},
+		OwnerID:   id.ID[user.User]{UUID: god.Believe(uuid.Parse(shopMap.OwnerID))},
+		CreatedAt: date.CreateDate[shopmap.ShopMap]{Time: shopMap.CreatedAt},
+		UpdatedAt: date.UpdateDate[shopmap.ShopMap]{Time: shopMap.UpdatedAt},
 	}
+
+	for _, categoryDao := range categories {
+		model.CategoryList[categoryDao.Number] = product.Category(categoryDao.Category)
+	}
+
+	return model
 }
 
-func modelToEntityIdx(model shopmap.ShopMap, _ int) ShopMapDAO {
-	return ShopMapDAO{
-		BaseModel: bun.BaseModel{},
-		ID:        model.ID.UUID,
-		OwnerID:   model.OwnerID.UUID,
-		CreatedAt: model.CreatedAt.Time,
-		UpdatedAt: model.UpdatedAt.Time,
-		CategoryList: lo.Map(model.CategoryList, func(item product.Category, index int) CategoryDAO {
-			return CategoryDAO{
-				BaseModel: bun.BaseModel{},
-				MapID:     model.ID.UUID,
-				Category:  string(item),
+func modelToEntity(model shopmap.ShopMap) (sqlgen.ShopMap, []sqlgen.ShopMapCategory, []sqlgen.ShopMapViewer) {
+	return sqlgen.ShopMap{
+			ID:        model.ID.UUID.String(),
+			OwnerID:   model.OwnerID.UUID.String(),
+			CreatedAt: model.CreatedAt.Time,
+			UpdatedAt: model.UpdatedAt.Time,
+		},
+		lo.Map(model.CategoryList, func(item product.Category, index int) sqlgen.ShopMapCategory {
+			return sqlgen.ShopMapCategory{
+				MapID:    model.ID.UUID.String(),
+				Number:   uint32(index),
+				Category: string(item),
 			}
 		}),
-		ViewerList: lo.Map(model.ViewerIDList, func(item id.ID[user.User], _ int) ShopMapViewer {
-			return ShopMapViewer{
-				UserID: item.UUID,
-				MapID:  model.ID.UUID,
+		lo.Map(model.ViewerIDList, func(item id.ID[user.User], _ int) sqlgen.ShopMapViewer {
+			return sqlgen.ShopMapViewer{
+				UserID: item.UUID.String(),
+				MapID:  model.ID.UUID.String(),
 			}
-		}),
-	}
-}
-
-func modelToEntity(model shopmap.ShopMap) ShopMapDAO {
-	return modelToEntityIdx(model, 0)
-}
-
-func entityToModel(dao ShopMapDAO) shopmap.ShopMap {
-	return entityToModelIdx(dao, 0)
+		})
 }

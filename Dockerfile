@@ -2,9 +2,10 @@ FROM golang:1.23.4 AS build
 
 WORKDIR /app
 
-ENV GOBIN=/bin
+ENV GOSUMDB=off
+ENV GOPROXY=direct
 
-RUN go install github.com/go-task/task/v3/cmd/task@latest
+RUN go install github.com/go-task/task/v3/cmd/task@v3.40.1
 
 COPY taskfile.yml .
 

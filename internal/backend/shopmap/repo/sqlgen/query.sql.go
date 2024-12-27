@@ -75,59 +75,27 @@ func (q *Queries) DeleteViewers(ctx context.Context, mapID string) error {
 	return err
 }
 
-const getByID = `-- name: GetByID :many
+const getByID = `-- name: GetByID :one
 SELECT
-    m.id,
-    m.owner_id,
-    m.created_at,
-    m.updated_at,
-    v.user_id,
-    c.category
+    id, owner_id, created_at, updated_at
 FROM
     shop_maps AS m
-    JOIN shop_map_categories AS c ON m.id = c.map_id
-    JOIN shop_map_viewers AS v ON m.id = v.map_id
 WHERE
     m.id = ?
+LIMIT
+    1
 `
 
-type GetByIDRow struct {
-	ID        string
-	OwnerID   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	UserID    string
-	Category  string
-}
-
-func (q *Queries) GetByID(ctx context.Context, id string) ([]GetByIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getByID, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetByIDRow
-	for rows.Next() {
-		var i GetByIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UserID,
-			&i.Category,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) GetByID(ctx context.Context, id string) (ShopMap, error) {
+	row := q.db.QueryRowContext(ctx, getByID, id)
+	var i ShopMap
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getByUserID = `-- name: GetByUserID :many
@@ -175,6 +143,76 @@ func (q *Queries) GetByUserID(ctx context.Context, userID string) ([]GetByUserID
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCategoriesByID = `-- name: GetCategoriesByID :many
+SELECT
+    number,
+    category
+FROM
+    shop_map_categories
+WHERE
+    map_id = ?
+`
+
+type GetCategoriesByIDRow struct {
+	Number   uint32
+	Category string
+}
+
+func (q *Queries) GetCategoriesByID(ctx context.Context, mapID string) ([]GetCategoriesByIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCategoriesByID, mapID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCategoriesByIDRow
+	for rows.Next() {
+		var i GetCategoriesByIDRow
+		if err := rows.Scan(&i.Number, &i.Category); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getViewersByMapID = `-- name: GetViewersByMapID :many
+SELECT
+    user_id
+FROM
+    shop_map_viewers
+WHERE
+    map_id = ?
+`
+
+func (q *Queries) GetViewersByMapID(ctx context.Context, mapID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getViewersByMapID, mapID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
