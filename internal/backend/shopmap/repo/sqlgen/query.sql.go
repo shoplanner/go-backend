@@ -7,6 +7,7 @@ package sqlgen
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -39,15 +40,33 @@ func (q *Queries) CreateShopMap(ctx context.Context, arg CreateShopMapParams) er
 	return err
 }
 
-const deleteCategories = `-- name: DeleteCategories :exec
+const deleteCategoriesAfterIndex = `-- name: DeleteCategoriesAfterIndex :exec
+DELETE FROM
+    shop_map_categories
+WHERE
+    map_id = ?
+    AND number >= ?
+`
+
+type DeleteCategoriesAfterIndexParams struct {
+	MapID  string
+	Number uint32
+}
+
+func (q *Queries) DeleteCategoriesAfterIndex(ctx context.Context, arg DeleteCategoriesAfterIndexParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCategoriesAfterIndex, arg.MapID, arg.Number)
+	return err
+}
+
+const deleteCategoriesByMapID = `-- name: DeleteCategoriesByMapID :exec
 DELETE FROM
     shop_map_categories
 WHERE
     map_id = ?
 `
 
-func (q *Queries) DeleteCategories(ctx context.Context, mapID string) error {
-	_, err := q.db.ExecContext(ctx, deleteCategories, mapID)
+func (q *Queries) DeleteCategoriesByMapID(ctx context.Context, mapID string) error {
+	_, err := q.db.ExecContext(ctx, deleteCategoriesByMapID, mapID)
 	return err
 }
 
@@ -75,6 +94,28 @@ func (q *Queries) DeleteViewers(ctx context.Context, mapID string) error {
 	return err
 }
 
+const deleteViewersByListID = `-- name: DeleteViewersByListID :exec
+DELETE FROM
+    shop_map_viewers
+WHERE
+    user_id IN (/*SLICE:user_ids*/?)
+`
+
+func (q *Queries) DeleteViewersByListID(ctx context.Context, userIds []string) error {
+	query := deleteViewersByListID
+	var queryParams []interface{}
+	if len(userIds) > 0 {
+		for _, v := range userIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:user_ids*/?", strings.Repeat(",?", len(userIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:user_ids*/?", "NULL", 1)
+	}
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
+}
+
 const getByID = `-- name: GetByID :one
 SELECT
     id, owner_id, created_at, updated_at
@@ -98,47 +139,76 @@ func (q *Queries) GetByID(ctx context.Context, id string) (ShopMap, error) {
 	return i, err
 }
 
-const getByUserID = `-- name: GetByUserID :many
+const getByListID = `-- name: GetByListID :many
 SELECT
-    m.id,
-    m.owner_id,
-    m.created_at,
-    m.updated_at,
-    v.user_id,
-    c.category
+    id, owner_id, created_at, updated_at
 FROM
-    shop_maps AS m
-    JOIN shop_map_categories AS c ON m.id = c.map_id
-    JOIN shop_map_viewers AS v ON m.id = v.map_id
+    shop_maps
 WHERE
-    v.user_id = ?
+    id IN (/*SLICE:map_ids*/?)
 `
 
-type GetByUserIDRow struct {
-	ID        string
-	OwnerID   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	UserID    string
-	Category  string
-}
-
-func (q *Queries) GetByUserID(ctx context.Context, userID string) ([]GetByUserIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getByUserID, userID)
+func (q *Queries) GetByListID(ctx context.Context, mapIds []string) ([]ShopMap, error) {
+	query := getByListID
+	var queryParams []interface{}
+	if len(mapIds) > 0 {
+		for _, v := range mapIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", strings.Repeat(",?", len(mapIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetByUserIDRow
+	var items []ShopMap
 	for rows.Next() {
-		var i GetByUserIDRow
+		var i ShopMap
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.UserID,
-			&i.Category,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getByOwnerID = `-- name: GetByOwnerID :many
+SELECT
+    id, owner_id, created_at, updated_at
+FROM
+    shop_maps AS m
+WHERE
+    m.owner_id = ?
+`
+
+func (q *Queries) GetByOwnerID(ctx context.Context, ownerID string) ([]ShopMap, error) {
+	rows, err := q.db.QueryContext(ctx, getByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ShopMap
+	for rows.Next() {
+		var i ShopMap
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -155,29 +225,139 @@ func (q *Queries) GetByUserID(ctx context.Context, userID string) ([]GetByUserID
 
 const getCategoriesByID = `-- name: GetCategoriesByID :many
 SELECT
-    number,
-    category
+    map_id, number, category
 FROM
     shop_map_categories
 WHERE
     map_id = ?
 `
 
-type GetCategoriesByIDRow struct {
-	Number   uint32
-	Category string
-}
-
-func (q *Queries) GetCategoriesByID(ctx context.Context, mapID string) ([]GetCategoriesByIDRow, error) {
+func (q *Queries) GetCategoriesByID(ctx context.Context, mapID string) ([]ShopMapCategory, error) {
 	rows, err := q.db.QueryContext(ctx, getCategoriesByID, mapID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetCategoriesByIDRow
+	var items []ShopMapCategory
 	for rows.Next() {
-		var i GetCategoriesByIDRow
-		if err := rows.Scan(&i.Number, &i.Category); err != nil {
+		var i ShopMapCategory
+		if err := rows.Scan(&i.MapID, &i.Number, &i.Category); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCategoriesByListID = `-- name: GetCategoriesByListID :many
+SELECT
+    map_id, number, category
+FROM
+    shop_map_categories
+WHERE
+    map_id IN (/*SLICE:map_ids*/?)
+`
+
+func (q *Queries) GetCategoriesByListID(ctx context.Context, mapIds []string) ([]ShopMapCategory, error) {
+	query := getCategoriesByListID
+	var queryParams []interface{}
+	if len(mapIds) > 0 {
+		for _, v := range mapIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", strings.Repeat(",?", len(mapIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ShopMapCategory
+	for rows.Next() {
+		var i ShopMapCategory
+		if err := rows.Scan(&i.MapID, &i.Number, &i.Category); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMapsWithViewer = `-- name: GetMapsWithViewer :many
+SELECT
+    map_id
+FROM
+    shop_map_viewers
+WHERE
+    user_id = ?
+`
+
+func (q *Queries) GetMapsWithViewer(ctx context.Context, userID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getMapsWithViewer, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var map_id string
+		if err := rows.Scan(&map_id); err != nil {
+			return nil, err
+		}
+		items = append(items, map_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getViewersByListID = `-- name: GetViewersByListID :many
+SELECT
+    map_id, user_id
+FROM
+    shop_map_viewers
+WHERE
+    map_id IN (/*SLICE:map_ids*/?)
+`
+
+func (q *Queries) GetViewersByListID(ctx context.Context, mapIds []string) ([]ShopMapViewer, error) {
+	query := getViewersByListID
+	var queryParams []interface{}
+	if len(mapIds) > 0 {
+		for _, v := range mapIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", strings.Repeat(",?", len(mapIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ShopMapViewer
+	for rows.Next() {
+		var i ShopMapViewer
+		if err := rows.Scan(&i.MapID, &i.UserID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -193,26 +373,26 @@ func (q *Queries) GetCategoriesByID(ctx context.Context, mapID string) ([]GetCat
 
 const getViewersByMapID = `-- name: GetViewersByMapID :many
 SELECT
-    user_id
+    map_id, user_id
 FROM
     shop_map_viewers
 WHERE
     map_id = ?
 `
 
-func (q *Queries) GetViewersByMapID(ctx context.Context, mapID string) ([]string, error) {
+func (q *Queries) GetViewersByMapID(ctx context.Context, mapID string) ([]ShopMapViewer, error) {
 	rows, err := q.db.QueryContext(ctx, getViewersByMapID, mapID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []ShopMapViewer
 	for rows.Next() {
-		var user_id string
-		if err := rows.Scan(&user_id); err != nil {
+		var i ShopMapViewer
+		if err := rows.Scan(&i.MapID, &i.UserID); err != nil {
 			return nil, err
 		}
-		items = append(items, user_id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -225,13 +405,14 @@ func (q *Queries) GetViewersByMapID(ctx context.Context, mapID string) ([]string
 
 const insertCategories = `-- name: InsertCategories :copyfrom
 INSERT INTO
-    shop_map_categories(map_id, category)
+    shop_map_categories(map_id, number, category)
 VALUES
-    (?, ?)
+    (?, ?, ?)
 `
 
 type InsertCategoriesParams struct {
 	MapID    string
+	Number   uint32
 	Category string
 }
 
@@ -245,6 +426,64 @@ VALUES
 type InsertViewersParams struct {
 	MapID  string
 	UserID string
+}
+
+const updateCategories = `-- name: UpdateCategories :exec
+INSERT INTO
+    shop_map_categories (map_id, number, category)
+VALUES
+    (
+        /*SLICE:map_ids*/?,
+        /*SLICE:numbers*/?,
+        /*SLICE:categories*/?
+    ) ON DUPLICATE KEY
+UPDATE
+    map_id =
+VALUES
+    (map_id),
+    number =
+VALUES
+    (number),
+    category =
+VALUES
+    (category)
+`
+
+type UpdateCategoriesParams struct {
+	MapIds     []string
+	Numbers    []uint32
+	Categories []string
+}
+
+func (q *Queries) UpdateCategories(ctx context.Context, arg UpdateCategoriesParams) error {
+	query := updateCategories
+	var queryParams []interface{}
+	if len(arg.MapIds) > 0 {
+		for _, v := range arg.MapIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", strings.Repeat(",?", len(arg.MapIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:map_ids*/?", "NULL", 1)
+	}
+	if len(arg.Numbers) > 0 {
+		for _, v := range arg.Numbers {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:numbers*/?", strings.Repeat(",?", len(arg.Numbers))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:numbers*/?", "NULL", 1)
+	}
+	if len(arg.Categories) > 0 {
+		for _, v := range arg.Categories {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:categories*/?", strings.Repeat(",?", len(arg.Categories))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:categories*/?", "NULL", 1)
+	}
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
 }
 
 const updateShopMap = `-- name: UpdateShopMap :exec

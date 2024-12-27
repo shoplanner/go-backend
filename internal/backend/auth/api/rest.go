@@ -98,14 +98,15 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	}
 
 	access, refresh, err := h.service.Refresh(c, auth.EncodedRefreshToken(req.RefreshToken))
-	if errors.Is(err, auth.ErrTokenExpired) {
+	switch {
+	case errors.Is(err, auth.ErrTokenExpired):
 		c.String(http.StatusGone, "refresh token expired")
 		return
-	} else if errors.Is(err, myerr.ErrForbidden) {
+	case errors.Is(err, myerr.ErrForbidden):
 		log.Err(err).Str("userId", GetUserID(c).String()).Msg("refreshing token failed")
 		c.String(http.StatusForbidden, err.Error())
 		return
-	} else if err != nil {
+	case err != nil:
 		log.Err(err).Str("userId", GetUserID(c).String()).Msg("refreshing token failed")
 		c.String(http.StatusForbidden, "forbidden")
 		return

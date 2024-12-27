@@ -18,9 +18,10 @@ import (
 var readerHandlerSequenceForInsertCategories uint32 = 1
 
 func convertRowsForInsertCategories(w *io.PipeWriter, arg []InsertCategoriesParams) {
-	e := mysqltsv.NewEncoder(w, 2, nil)
+	e := mysqltsv.NewEncoder(w, 3, nil)
 	for _, row := range arg {
 		e.AppendString(row.MapID)
+		e.AppendValue(row.Number)
 		e.AppendString(row.Category)
 	}
 	w.CloseWithError(e.Close())
@@ -43,7 +44,7 @@ func (q *Queries) InsertCategories(ctx context.Context, arg []InsertCategoriesPa
 	go convertRowsForInsertCategories(pw, arg)
 	// The string interpolation is necessary because LOAD DATA INFILE requires
 	// the file name to be given as a literal string.
-	result, err := q.db.ExecContext(ctx, fmt.Sprintf("LOAD DATA LOCAL INFILE '%s' INTO TABLE `shop_map_categories` %s (map_id, category)", "Reader::"+rh, mysqltsv.Escaping))
+	result, err := q.db.ExecContext(ctx, fmt.Sprintf("LOAD DATA LOCAL INFILE '%s' INTO TABLE `shop_map_categories` %s (map_id, number, category)", "Reader::"+rh, mysqltsv.Escaping))
 	if err != nil {
 		return 0, err
 	}

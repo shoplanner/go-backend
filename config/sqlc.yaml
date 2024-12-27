@@ -3,6 +3,7 @@ sql:
   - engine: "mysql"
     queries:
       - "query.sql"
+      - "schema.sql"
     schema:
       - "schema.sql"
     gen:

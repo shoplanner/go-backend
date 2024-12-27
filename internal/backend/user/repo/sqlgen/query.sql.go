@@ -11,17 +11,10 @@ import (
 )
 
 const createUser = `-- name: CreateUser :execresult
-INSERT INTO users(
-id,
-login,
-hash,
-role
-)VALUES(
-?,
-?,
-?,
-?
-)
+INSERT INTO
+    users(id, login, hash, role)
+VALUES
+    (?, ?, ?, ?)
 `
 
 type CreateUserParams struct {
@@ -42,9 +35,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (sql.Res
 
 const getAll = `-- name: GetAll :many
 SELECT
-id, role, login, hash
+    id, role, login, hash
 FROM
-users
+    users
 `
 
 func (q *Queries) GetAll(ctx context.Context) ([]User, error) {
@@ -77,12 +70,13 @@ func (q *Queries) GetAll(ctx context.Context) ([]User, error) {
 
 const getByID = `-- name: GetByID :one
 SELECT
-id, role, login, hash
+    id, role, login, hash
 FROM
-users
+    users
 WHERE
-id = ?
-LIMIT 1
+    id = ?
+LIMIT
+    1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id string) (User, error) {
@@ -104,7 +98,8 @@ FROM
     users
 WHERE
     login = ?
-LIMIT 1
+LIMIT
+    1
 `
 
 func (q *Queries) GetByLogin(ctx context.Context, login string) (User, error) {

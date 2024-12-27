@@ -20,6 +20,8 @@ const (
 	userRoleKey = "userRole"
 	userIDKey   = "userId"
 	deviceIDKey = "deviceId"
+
+	authHeader = "Auth"
 )
 
 type JWTMiddleware struct {
@@ -34,7 +36,7 @@ func NewAuthMiddleware(auth *service.Service) *JWTMiddleware {
 
 func (m *JWTMiddleware) Middleware() func(*gin.Context) {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Auth")
+		header := c.GetHeader(authHeader)
 
 		rawToken, cut := strings.CutPrefix(header, "Bearer ")
 		if !cut {

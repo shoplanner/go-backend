@@ -8,25 +8,25 @@ WHERE
 LIMIT
     1;
 
--- name: GetByUserID :many
+-- name: GetByOwnerID :many
 SELECT
-    m.id,
-    m.owner_id,
-    m.created_at,
-    m.updated_at,
-    v.user_id,
-    c.category
+    *
 FROM
     shop_maps AS m
-    JOIN shop_map_categories AS c ON m.id = c.map_id
-    JOIN shop_map_viewers AS v ON m.id = v.map_id
 WHERE
-    v.user_id = ?;
+    m.owner_id = ?;
+
+-- name: GetByListID :many
+SELECT
+    *
+FROM
+    shop_maps
+WHERE
+    id IN (sqlc.slice('map_ids'));
 
 -- name: GetCategoriesByID :many
 SELECT
-    number,
-    category
+    *
 FROM
     shop_map_categories
 WHERE
@@ -34,11 +34,19 @@ WHERE
 
 -- name: GetViewersByMapID :many
 SELECT
-    user_id
+    *
 FROM
     shop_map_viewers
 WHERE
     map_id = ?;
+
+-- name: GetMapsWithViewer :many
+SELECT
+    map_id
+FROM
+    shop_map_viewers
+WHERE
+    user_id = ?;
 
 -- name: CreateShopMap :exec
 INSERT INTO
@@ -59,9 +67,9 @@ VALUES
 
 -- name: InsertCategories :copyfrom
 INSERT INTO
-    shop_map_categories(map_id, category)
+    shop_map_categories(map_id, number, category)
 VALUES
-    (?, ?);
+    (?, ?, ?);
 
 -- name: UpdateShopMap :exec
 UPDATE
@@ -85,8 +93,57 @@ DELETE FROM
 WHERE
     map_id = ?;
 
--- name: DeleteCategories :exec
+-- name: DeleteCategoriesByMapID :exec
 DELETE FROM
     shop_map_categories
 WHERE
     map_id = ?;
+
+-- name: DeleteCategoriesAfterIndex :exec
+DELETE FROM
+    shop_map_categories
+WHERE
+    map_id = ?
+    AND number >= ?;
+
+-- name: UpdateCategories :exec
+INSERT INTO
+    shop_map_categories (map_id, number, category)
+VALUES
+    (
+        sqlc.slice('map_ids'),
+        sqlc.slice('numbers'),
+        sqlc.slice('categories')
+    ) ON DUPLICATE KEY
+UPDATE
+    map_id =
+VALUES
+    (map_id),
+    number =
+VALUES
+    (number),
+    category =
+VALUES
+    (category);
+
+-- name: GetCategoriesByListID :many
+SELECT
+    *
+FROM
+    shop_map_categories
+WHERE
+    map_id IN (sqlc.slice('map_ids'));
+
+-- name: GetViewersByListID :many
+SELECT
+    *
+FROM
+    shop_map_viewers
+WHERE
+    map_id IN (sqlc.slice('map_ids'));
+
+-- name: DeleteViewersByListID :exec
+DELETE FROM
+    shop_map_viewers
+WHERE
+    user_id IN (sqlc.slice('user_ids'));
