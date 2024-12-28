@@ -26,7 +26,7 @@ type repo interface {
 		id id.ID[shopmap.ShopMap],
 		updateFunc func(shopmap.ShopMap) (shopmap.ShopMap, error),
 	) (shopmap.ShopMap, error)
-	Delete(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
+	Delete(context.Context, id.ID[shopmap.ShopMap]) error
 	GetByID(context.Context, id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error)
 	GetByUserID(context.Context, id.ID[user.User]) ([]shopmap.ShopMap, error)
 }
@@ -134,7 +134,7 @@ func (s *Service) DeleteMap(
 		return shopMap, fmt.Errorf("%w: only owner can delete shop map %s", myerr.ErrForbidden, mapID)
 	}
 
-	return s.repoDelete(ctx, mapID)
+	return shopMap, s.repoDelete(ctx, mapID)
 }
 
 func (s *Service) UpdateMap(
@@ -191,12 +191,12 @@ func (s *Service) repoCreate(ctx context.Context, shopMap shopmap.ShopMap) error
 	return nil
 }
 
-func (s *Service) repoDelete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
-	shopMap, err := s.repo.Delete(ctx, mapID)
+func (s *Service) repoDelete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) error {
+	err := s.repo.Delete(ctx, mapID)
 	if err != nil {
-		return shopMap, fmt.Errorf("can't delete shop map %s: %w", mapID.String(), err)
+		return fmt.Errorf("can't delete shop map %s: %w", mapID.String(), err)
 	}
-	return shopMap, nil
+	return nil
 }
 
 func (s *Service) repoGetAndUpdate(

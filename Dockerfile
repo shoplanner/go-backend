@@ -2,9 +2,6 @@ FROM golang:1.23.4 AS build
 
 WORKDIR /app
 
-ENV GOSUMDB=off
-ENV GOPROXY=direct
-
 RUN go install github.com/go-task/task/v3/cmd/task@v3.40.1
 
 COPY taskfile.yml .
@@ -14,13 +11,12 @@ RUN task deps
 COPY go.mod .
 COPY go.sum .
 
-RUN go mod tidy
 RUN go mod download
 
 COPY . .
 
 RUN task generate
-RUN CGO_ENABLED=0 task build
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 task build
 
 FROM scratch AS prod
 COPY --from=build /app/bin/backend /bin/shoplanner

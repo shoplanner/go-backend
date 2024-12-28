@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	"github.com/kr/pretty"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
 
@@ -86,36 +87,59 @@ func main() {
 		Passwd:               envCfg.Database.Password,
 		Net:                  envCfg.Database.Net,
 		Addr:                 envCfg.Database.Host,
-		DBName:               envCfg.Database.Name,
 		AllowNativePasswords: true,
 	}
 
-	aredisClient, err := rueidis.NewClient(rueidis.ClientOption{
+	redisClient, err := rueidis.NewClient(rueidis.ClientOption{
 		Username:    envCfg.Redis.User,
 		Password:    envCfg.Redis.Password,
 		InitAddress: []string{envCfg.Redis.Addr},
 		ClientName:  clientName,
 	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("creating redis client")
+	}
 
 	sqlDB, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to database")
 	}
 
-	_, err = sqlDB.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
-    id varchar(36) PRIMARY KEY,
-    role int NOT NULL,
-    login text NOT NULL,
-    hash text NOT NULL,
-    CONSTRAINT U_Login UNIQUE (id,login)
-)`)
-	if err != nil {
-		log.Error().Err(err).Msg("creating table")
+	if err := sqlDB.PingContext(ctx); err != nil {
+		log.Fatal().Err(err).Caller().Stack().Msg("ping DB")
+	} else {
+		log.Info().Caller().Msg("DoltDB ping OK")
 	}
 
-	userDB := userRepo.NewRepo(sqlDB)
-	accessRepo := authRepo.NewRedisRepo[auth.AccessToken](aredisClient)
-	refreshRepo := authRepo.NewRedisRepo[auth.RefreshToken](aredisClient)
+	rows, err := sqlDB.QueryContext(ctx, "select * from kekes.kek")
+	if err != nil {
+		panic(err)
+	}
+	var kek []string
+	for rows.Next() {
+		err = rows.Scan(&kek)
+		if err != nil {
+			panic(err)
+		}
+		pretty.Println(kek)
+	}
+
+	_, err = sqlDB.ExecContext(ctx, "create database if not exists ?", envCfg.Database.Name)
+	if err != nil {
+		log.Fatal().Err(err).Msg("initializing database")
+	}
+	_, err = sqlDB.ExecContext(ctx, `USE ?`, envCfg.Database.Name)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't use database")
+	}
+
+	userDB, err := userRepo.NewRepo(ctx, sqlDB)
+	if err != nil {
+		log.Fatal().Err(err).Msg("initializing user repo")
+	}
+
+	accessRepo := authRepo.NewRedisRepo[auth.AccessToken](redisClient)
+	refreshRepo := authRepo.NewRedisRepo[auth.RefreshToken](redisClient)
 	shopMapRepo, err := repo.NewShopMapRepo(ctx, sqlDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't initialize shop map storage")
@@ -123,12 +147,12 @@ func main() {
 
 	err = accessRepo.Init(ctx)
 	if err != nil {
-		log.Err(err).Send()
+		log.Fatal().Err(err).Msg("initializing access tokens repo")
 	}
 
 	err = refreshRepo.Init(ctx)
 	if err != nil {
-		log.Err(err).Send()
+		log.Fatal().Err(err).Msg("initializing refresh tokens repo")
 	}
 
 	// business logic

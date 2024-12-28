@@ -14,9 +14,6 @@ services:
     volumes:
       - ./dolt:/var/lib/dolt
   shoplanner:
-    volumes:
-      - $HOME/.cache/go-build:/root/.cache/go-build:cached
-      - $GOPATH:/go:cached
     build:
       context: .
     env_file:

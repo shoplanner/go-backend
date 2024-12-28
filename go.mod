@@ -1,6 +1,6 @@
 module go-backend
 
-go 1.23.1
+go 1.23.4
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -8,6 +8,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hexon/mysqltsv v0.2.2
 	github.com/joho/godotenv v1.5.1
+	github.com/kr/pretty v0.3.1
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
 	github.com/redis/rueidis v1.0.51
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/mo v1.13.0
@@ -22,7 +24,9 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 )
 
 require (
