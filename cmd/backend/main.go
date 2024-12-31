@@ -1,3 +1,4 @@
+//nolint:cyclop // main is stronk
 package main
 
 import (
@@ -44,6 +45,8 @@ const clientName = "shoplanner"
 // @securityDefinitions.apikey	ApiKeyAuth
 // @in							header
 // @name						Auth
+
+//nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Info().Err(err).Msg("can't load .env file")
@@ -57,7 +60,6 @@ func main() {
 	defer cancel()
 
 	router := gin.New()
-	// router.Use(middleware.Logging)
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 
@@ -82,6 +84,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
 	}
+
 	doltCfg := mysql.Config{
 		User:                 envCfg.Database.User,
 		Passwd:               envCfg.Database.Password,

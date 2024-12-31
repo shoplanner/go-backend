@@ -310,7 +310,7 @@ linters:
     #- depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
     #- dogsled # checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())
     #- dupword # [useless without config] checks for duplicate words in the source code
-    #- err113 # [too strict] checks the errors handling expressions
+    - err113 # [too strict] checks the errors handling expressions
     #- errchkjson # [don't see profit + I'm against of omitting errors like in the first example https://github.com/breml/errchkjson] checks types passed to the json encoding functions. Reports unsupported types and optionally reports occasions, where the check for the returned error can be omitted
     #- execinquery # [deprecated] checks query string in Query function which reads your Go src files and warning it finds
     #- forcetypeassert # [replaced by errcheck] finds forced type assertions
@@ -318,14 +318,14 @@ linters:
     #- gofumpt # [replaced by goimports, gofumports is not available yet] checks whether code was gofumpt-ed
     #- gosmopolitan # reports certain i18n/l10n anti-patterns in your Go codebase
     #- grouper # analyzes expression groups
-    #- importas # enforces consistent import aliases
-    #- maintidx # measures the maintainability index of each function
+    - importas # enforces consistent import aliases
+    - maintidx # measures the maintainability index of each function
     #- misspell # [useless] finds commonly misspelled English words in comments
     #- nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
     #- paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
     #- tagliatelle # checks the struct tags
     #- thelper # detects golang test helpers without t.Helper() call and checks the consistency of test helpers
-    #- wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
+    - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
 
 issues:
   # Maximum count of issues with the same text.

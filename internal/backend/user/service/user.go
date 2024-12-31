@@ -61,7 +61,11 @@ func (s *Service) Create(ctx context.Context, options user.CreateOptions) (user.
 		PasswordHash: user.Hash(hash),
 	}
 
-	return newUser, s.userRepo.Create(ctx, newUser) // TODO: already exists
+	if err = s.userRepo.Create(ctx, newUser); err != nil {
+		return user.User{}, fmt.Errorf("can't save user to storage: %w", err)
+	}
+
+	return newUser, nil
 }
 
 func (s *Service) ValidatePassword(ctx context.Context, login user.Login, pass string) (user.User, error) {
