@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -45,7 +46,8 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 	if err != nil {
 		return fmt.Errorf("DoltDB: can't start transaction: %w", err)
 	}
-	defer checkRollback(tx.Rollback())
+
+	defer func() { checkRollback(tx.Rollback()) }()
 
 	qtx := s.queries.WithTx(tx)
 
@@ -59,28 +61,33 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 		return fmt.Errorf("can't insert shop map to DoltDB: %w", err)
 	}
 
-	_, err = qtx.InsertViewers(
-		ctx,
-		lo.Map(model.ViewerIDList, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
-			return sqlgen.InsertViewersParams{
-				MapID:  model.ID.String(),
-				UserID: userID.String(),
-			}
-		}))
-	if err != nil {
-		return fmt.Errorf("can't insert viewers for shop map %s: %w", model.ID, err)
+	if len(model.ViewerIDList) != 0 {
+		_, err = qtx.InsertViewers(
+			ctx,
+			lo.Map(model.ViewerIDList, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
+				return sqlgen.InsertViewersParams{
+					MapID:  model.ID.String(),
+					UserID: userID.String(),
+				}
+			}))
+		if err != nil {
+			return fmt.Errorf("can't insert viewers for shop map %s: %w", model.ID, err)
+		}
 	}
-	_, err = qtx.InsertCategories(
-		ctx,
-		lo.Map(model.CategoryList, func(category product.Category, index int) sqlgen.InsertCategoriesParams {
-			return sqlgen.InsertCategoriesParams{
-				MapID:    model.ID.String(),
-				Number:   uint32(index), //nolint:gosec // slice index can't be negative
-				Category: string(category),
-			}
-		}))
-	if err != nil {
-		return wrapErr(fmt.Errorf("can't insert categories of shop map %s: %w", model.ID, err))
+
+	if len(model.CategoryList) != 0 {
+		_, err = qtx.InsertCategories(
+			ctx,
+			lo.Map(model.CategoryList, func(category product.Category, index int) sqlgen.InsertCategoriesParams {
+				return sqlgen.InsertCategoriesParams{
+					MapID:    model.ID.String(),
+					Number:   uint32(index), //nolint:gosec // slice index can't be negative
+					Category: string(category),
+				}
+			}))
+		if err != nil {
+			return wrapErr(fmt.Errorf("can't insert categories of shop map %s: %w", model.ID, err))
+		}
 	}
 
 	return wrapErr(tx.Commit())
@@ -91,7 +98,7 @@ func (s *ShopMapRepo) Delete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) 
 	if err != nil {
 		return fmt.Errorf("can't start DoltDB transaction: %w", err)
 	}
-	defer checkRollback(tx.Rollback())
+	defer func() { checkRollback(tx.Rollback()) }()
 
 	qtx := s.queries.WithTx(tx)
 
@@ -117,7 +124,7 @@ func (s *ShopMapRepo) GetAndUpdate(
 	if err != nil {
 		return shopmap.ShopMap{}, fmt.Errorf("can't start transaction: %w", err)
 	}
-	defer checkRollback(tx.Rollback())
+	defer func() { checkRollback(tx.Rollback()) }()
 
 	qtx := s.queries.WithTx(tx)
 
@@ -144,7 +151,7 @@ func (s *ShopMapRepo) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap])
 	if err != nil {
 		return shopmap.ShopMap{}, fmt.Errorf("can't start DoltDB transaction: %w", err)
 	}
-	defer checkRollback(tx.Rollback())
+	defer func() { checkRollback(tx.Rollback()) }()
 
 	qtx := s.queries.WithTx(tx)
 
@@ -162,6 +169,9 @@ func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) 
 	if err != nil {
 		return nil, fmt.Errorf("can't start transaction: %w", err)
 	}
+
+	defer func() { checkRollback(tx.Rollback()) }()
+
 	qtx := s.queries.WithTx(tx)
 
 	viewerMapIDList, err := qtx.GetMapsWithViewer(ctx, userID.String())
@@ -173,6 +183,7 @@ func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) 
 	if err != nil {
 		return nil, fmt.Errorf("can't get shop maps of user %s: %w", userID, err)
 	}
+
 	ownerMapList, err := qtx.GetByOwnerID(ctx, userID.String())
 	if err != nil {
 		return nil, fmt.Errorf("can't get owner maps of user %s: %w", userID, err)
@@ -186,6 +197,7 @@ func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) 
 	if err != nil {
 		return nil, fmt.Errorf("can't get shop map categories of user %s: %w", userID, err)
 	}
+
 	viewerListDAO, err := qtx.GetViewersByListID(ctx, mapListID)
 	if err != nil {
 		return nil, fmt.Errorf("can't get viewers of shop maps user %s: %w", userID, err)
@@ -197,6 +209,7 @@ func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) 
 	for _, category := range categoryListDAO {
 		idMapToCategories[category.MapID] = append(idMapToCategories[category.MapID], category)
 	}
+
 	for _, viewer := range viewerListDAO {
 		idMapToViewers[viewer.MapID] = append(idMapToViewers[viewer.MapID], viewer)
 	}
@@ -206,7 +219,7 @@ func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) 
 		models = append(models, entityToModel(shopMap, idMapToCategories[shopMap.ID], idMapToViewers[shopMap.ID]))
 	}
 
-	return models, nil
+	return models, wrapErr(tx.Commit())
 }
 
 func (s *ShopMapRepo) getByID(
@@ -268,22 +281,22 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap, 
 		}
 	}
 
-	params := sqlgen.UpdateCategoriesParams{
-		MapIds:     []string{},
-		Numbers:    []uint32{},
-		Categories: []string{},
-	}
+	// update changed categories
 	for i := range min(len(newModel.CategoryList), len(oldModel.CategoryList)) {
-		if newModel.CategoryList[i] != oldModel.CategoryList[i] {
-			params.Categories = append(params.Categories, string(newModel.CategoryList[i]))
-			params.MapIds = append(params.MapIds, newModel.ID.String())
-			params.Numbers = append(params.Numbers, uint32(i)) //nolint:gosec // index
+		if newModel.CategoryList[i] == oldModel.CategoryList[i] {
+			continue
 		}
-	}
 
-	err = qtx.UpdateCategories(ctx, params)
-	if err != nil {
-		return fmt.Errorf("can't update categories of shop map %s: %w", newModel.ID, err)
+		params := sqlgen.UpdateCategoriesParams{
+			Number:   uint32(i), //nolint:gosec //index can't be negative
+			MapID:    newModel.ID.String(),
+			Category: string(newModel.CategoryList[i]),
+		}
+
+		err = qtx.UpdateCategories(ctx, params)
+		if err != nil {
+			return fmt.Errorf("can't update categories of shop map %s: %w", newModel.ID, err)
+		}
 	}
 
 	added, deleted := lo.Difference(newModel.ViewerIDList, oldModel.ViewerIDList)
@@ -298,6 +311,7 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap, 
 			return wrapErr(fmt.Errorf("can't add new viewers to shop map %s: %w", newModel.ID, err))
 		}
 	}
+
 	if len(deleted) != 0 {
 		err = qtx.DeleteViewersByListID(ctx, lo.Map(deleted, func(userID id.ID[user.User], _ int) string {
 			return userID.String()
@@ -344,7 +358,7 @@ func wrapErr(err error) error {
 }
 
 func checkRollback(err error) {
-	if wrapped := wrapErr(err); wrapped != nil {
+	if wrapped := wrapErr(err); wrapped != nil && !errors.Is(err, sql.ErrTxDone) {
 		log.Err(wrapped).Msg("rollback failed")
 	}
 }

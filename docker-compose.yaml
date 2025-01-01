@@ -1,4 +1,11 @@
 services:
+  mysql:
+    image: mysql:latest
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_HOST=172.0.0.0/8
+      - MYSQL_ALLOW_EMPTY_PASSWORD=1
   redis:
     image: redis/redis-stack-server:7.2.0-v6
     ports:
@@ -19,7 +26,6 @@ services:
     env_file:
       - ./.env
     depends_on:
-      - dolt
       - redis
     ports:
       - "3000:3000"

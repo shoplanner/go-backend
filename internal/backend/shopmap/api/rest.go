@@ -77,8 +77,13 @@ func (h *Handler) GetByID(ctx *gin.Context) {
 	}
 
 	shopMap, err := h.service.GetByID(ctx, id.ID[shopmap.ShopMap]{UUID: mapID})
-	if err != nil {
+	if errors.Is(err, myerr.ErrNotFound) {
 		ctx.String(http.StatusNotFound, "shop map %s not found", mapID)
+		return
+	} else if err != nil {
+		log.Err(err).Msg("getting shop map")
+		ctx.String(http.StatusInternalServerError, "internal error")
+
 		return
 	}
 
@@ -95,7 +100,9 @@ func (h *Handler) GetByID(ctx *gin.Context) {
 func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
 	shopMapList, err := h.service.GetByUserID(ctx, api.GetUserID(ctx))
 	if err != nil {
+		log.Err(err).Msg("get user's shop maps")
 		ctx.String(http.StatusInternalServerError, "internal error")
+
 		return
 	}
 
@@ -117,12 +124,15 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 		return
 	}
 	shopMap, err := h.service.DeleteMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx))
+
 	if errors.Is(err, myerr.ErrForbidden) {
 		ctx.String(http.StatusForbidden, err.Error())
+
 		return
 	} else if err != nil {
 		log.Err(err).Msg("deleting shop map")
 		ctx.String(http.StatusInternalServerError, "internal error")
+
 		return
 	}
 
@@ -141,6 +151,7 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 // @Security ApiKeyAuth
 func (h *Handler) UpdateMap(ctx *gin.Context) {
 	var shopMapCfg shopmap.Options
+
 	mapID, err := uuid.Parse(ctx.Query("id"))
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id must be valid uuid")
@@ -153,7 +164,7 @@ func (h *Handler) UpdateMap(ctx *gin.Context) {
 	}
 
 	shopMap, err := h.service.UpdateMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx), shopMapCfg)
-	if err != nil {
+	if errors.Is(err, myerr.ErrInvalidArgument) {
 		ctx.String(http.StatusBadRequest, "can't update shop map: %s", err.Error())
 		return
 	}

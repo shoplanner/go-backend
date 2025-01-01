@@ -16,7 +16,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
-	"github.com/kr/pretty"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
 
@@ -53,6 +52,7 @@ func main() {
 	}
 
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
+
 	flag.Parse()
 
 	ctx := context.Background()
@@ -78,7 +78,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't parse environment")
 	}
-	log.Debug().Any("env", envCfg).Msg("loaded env")
+	log.Info().Any("env", envCfg).Msg("loaded env")
 
 	authPrivateKey, err := decodeECDSA(envCfg.Auth.PrivateKey)
 	if err != nil {
@@ -91,6 +91,7 @@ func main() {
 		Net:                  envCfg.Database.Net,
 		Addr:                 envCfg.Database.Host,
 		AllowNativePasswords: true,
+		ParseTime:            true,
 	}
 
 	redisClient, err := rueidis.NewClient(rueidis.ClientOption{
@@ -108,32 +109,23 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to database")
 	}
 
-	if err := sqlDB.PingContext(ctx); err != nil {
+	if err = sqlDB.PingContext(ctx); err != nil {
 		log.Fatal().Err(err).Caller().Stack().Msg("ping DB")
 	} else {
 		log.Info().Caller().Msg("DoltDB ping OK")
 	}
 
-	rows, err := sqlDB.QueryContext(ctx, "select * from kekes.kek")
-	if err != nil {
-		panic(err)
-	}
-	var kek []string
-	for rows.Next() {
-		err = rows.Scan(&kek)
-		if err != nil {
-			panic(err)
-		}
-		pretty.Println(kek)
-	}
-
-	_, err = sqlDB.ExecContext(ctx, "create database if not exists ?", envCfg.Database.Name)
+	_, err = sqlDB.ExecContext(ctx, fmt.Sprintf("create database if not exists %s", envCfg.Database.Name))
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing database")
 	}
-	_, err = sqlDB.ExecContext(ctx, `USE ?`, envCfg.Database.Name)
+	_, err = sqlDB.ExecContext(ctx, fmt.Sprintf(`USE %s`, envCfg.Database.Name))
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't use database")
+	}
+	_, err = sqlDB.ExecContext(ctx, "set global local_infile=1")
+	if err != nil {
+		log.Fatal().Err(err).Msg("enabling load data in DB")
 	}
 
 	userDB, err := userRepo.NewRepo(ctx, sqlDB)
@@ -141,21 +133,17 @@ func main() {
 		log.Fatal().Err(err).Msg("initializing user repo")
 	}
 
-	accessRepo := authRepo.NewRedisRepo[auth.AccessToken](redisClient)
-	refreshRepo := authRepo.NewRedisRepo[auth.RefreshToken](redisClient)
-	shopMapRepo, err := repo.NewShopMapRepo(ctx, sqlDB)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't initialize shop map storage")
-	}
-
-	err = accessRepo.Init(ctx)
+	accessRepo, err := authRepo.NewRedisRepo[auth.AccessToken](ctx, redisClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing access tokens repo")
 	}
-
-	err = refreshRepo.Init(ctx)
+	refreshRepo, err := authRepo.NewRedisRepo[auth.RefreshToken](ctx, redisClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing refresh tokens repo")
+	}
+	shopMapRepo, err := repo.NewShopMapRepo(ctx, sqlDB)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
 
 	// business logic
@@ -187,7 +175,7 @@ func main() {
 	api.RegisterREST(apiGroup, shopMapService)
 
 	go func() {
-		if err = router.RunListener(listener); err != nil {
+		if err = router.RunListener(listener); err != nil && ctx.Err() == nil {
 			log.Fatal().Err(err).Msg("listener returns error")
 		}
 	}()

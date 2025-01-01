@@ -76,8 +76,7 @@ UPDATE
     shop_maps
 SET
     owner_id = ?,
-    updated_at = ?,
-    created_at = ?
+    updated_at = ?
 WHERE
     id = ?;
 
@@ -110,11 +109,7 @@ WHERE
 INSERT INTO
     shop_map_categories (map_id, number, category)
 VALUES
-    (
-        sqlc.slice('map_ids'),
-        sqlc.slice('numbers'),
-        sqlc.slice('categories')
-    ) ON DUPLICATE KEY
+    (?, ?, ?) ON DUPLICATE KEY
 UPDATE
     map_id =
 VALUES

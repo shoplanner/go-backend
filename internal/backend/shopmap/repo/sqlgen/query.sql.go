@@ -432,11 +432,7 @@ const updateCategories = `-- name: UpdateCategories :exec
 INSERT INTO
     shop_map_categories (map_id, number, category)
 VALUES
-    (
-        /*SLICE:map_ids*/?,
-        /*SLICE:numbers*/?,
-        /*SLICE:categories*/?
-    ) ON DUPLICATE KEY
+    (?, ?, ?) ON DUPLICATE KEY
 UPDATE
     map_id =
 VALUES
@@ -450,39 +446,13 @@ VALUES
 `
 
 type UpdateCategoriesParams struct {
-	MapIds     []string
-	Numbers    []uint32
-	Categories []string
+	MapID    string
+	Number   uint32
+	Category string
 }
 
 func (q *Queries) UpdateCategories(ctx context.Context, arg UpdateCategoriesParams) error {
-	query := updateCategories
-	var queryParams []interface{}
-	if len(arg.MapIds) > 0 {
-		for _, v := range arg.MapIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:map_ids*/?", strings.Repeat(",?", len(arg.MapIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:map_ids*/?", "NULL", 1)
-	}
-	if len(arg.Numbers) > 0 {
-		for _, v := range arg.Numbers {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:numbers*/?", strings.Repeat(",?", len(arg.Numbers))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:numbers*/?", "NULL", 1)
-	}
-	if len(arg.Categories) > 0 {
-		for _, v := range arg.Categories {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:categories*/?", strings.Repeat(",?", len(arg.Categories))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:categories*/?", "NULL", 1)
-	}
-	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	_, err := q.db.ExecContext(ctx, updateCategories, arg.MapID, arg.Number, arg.Category)
 	return err
 }
 
@@ -491,8 +461,7 @@ UPDATE
     shop_maps
 SET
     owner_id = ?,
-    updated_at = ?,
-    created_at = ?
+    updated_at = ?
 WHERE
     id = ?
 `
@@ -500,16 +469,10 @@ WHERE
 type UpdateShopMapParams struct {
 	OwnerID   string
 	UpdatedAt time.Time
-	CreatedAt time.Time
 	ID        string
 }
 
 func (q *Queries) UpdateShopMap(ctx context.Context, arg UpdateShopMapParams) error {
-	_, err := q.db.ExecContext(ctx, updateShopMap,
-		arg.OwnerID,
-		arg.UpdatedAt,
-		arg.CreatedAt,
-		arg.ID,
-	)
+	_, err := q.db.ExecContext(ctx, updateShopMap, arg.OwnerID, arg.UpdatedAt, arg.ID)
 	return err
 }

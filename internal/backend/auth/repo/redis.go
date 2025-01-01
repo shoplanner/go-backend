@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 
 	"go-backend/internal/backend/auth"
 	"go-backend/internal/backend/user"
+	"go-backend/pkg/god"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 )
@@ -40,30 +42,34 @@ type RedisRepo[T any] struct {
 	client    rueidis.Client
 }
 
-func NewRedisRepo[T any](client rueidis.Client) *RedisRepo[T] {
+func NewRedisRepo[T any](ctx context.Context, client rueidis.Client) (*RedisRepo[T], error) {
 	var t T
 	baseName := fmt.Sprintf("%T", t)
+	indexName := "idx:" + baseName
 
-	return &RedisRepo[T]{client: client, baseName: baseName, indexName: "idx:" + baseName}
-}
-
-func (r *RedisRepo[T]) Init(ctx context.Context) error {
-	cmd := r.client.B().FtCreate().
-		Index(r.indexName).OnJson().Prefix(1).Prefix(fmt.Sprintf("%s:", r.baseName)).
-		Schema().
-		FieldName(pathJSON(keyTokenID)).As(keyTokenID).Tag().
-		FieldName(pathJSON(keyUserID)).As(keyUserID).Tag().
-		FieldName(pathJSON(keyDeviceID)).As(keyDeviceID).Tag().
-		FieldName(pathJSON(keyTokenState)).As(keyTokenState).Tag().
-		Build()
-
-	res := r.client.Do(ctx, cmd)
-
-	if res.Error() != nil {
-		return fmt.Errorf("can't create redis index: %w", res.Error())
+	indexList, err := client.Do(ctx, client.B().FtList().Build()).AsStrSlice()
+	if err != nil {
+		return nil, fmt.Errorf("can't get current index list: %w", err)
 	}
 
-	return nil
+	if !slices.Contains(indexList, indexName) {
+		cmd := client.B().FtCreate().
+			Index(indexName).OnJson().Prefix(1).Prefix(fmt.Sprintf("%s:", baseName)).
+			Schema().
+			FieldName(pathJSON(keyTokenID)).As(keyTokenID).Tag().
+			FieldName(pathJSON(keyUserID)).As(keyUserID).Tag().
+			FieldName(pathJSON(keyDeviceID)).As(keyDeviceID).Tag().
+			FieldName(pathJSON(keyTokenState)).As(keyTokenState).Tag().
+			Build()
+
+		res := client.Do(ctx, cmd)
+
+		if res.Error() != nil {
+			return nil, fmt.Errorf("can't create redis index: %w", res.Error())
+		}
+	}
+
+	return &RedisRepo[T]{client: client, baseName: baseName, indexName: indexName}, nil
 }
 
 func (r *RedisRepo[T]) Set(ctx context.Context, tokenID auth.TokenID[T], state auth.TokenState) error {
@@ -97,8 +103,6 @@ func (r *RedisRepo[T]) GetByID(ctx context.Context, targetID id.ID[T]) (auth.Tok
 	}
 
 	tokenID, state := recordToToken[T](rec[0])
-
-	log.Debug().Any("tokenID", tokenID).Any("state", state).Str("component", r.baseName+" redis repo").Msg("got token by id")
 
 	return tokenID, state, nil
 }
@@ -187,11 +191,6 @@ func escapeUUID(toEscape uuid.UUID) string {
 	return strings.ReplaceAll(toEscape.String(), "-", "\\-")
 }
 
-func unescapeUUID(s string) uuid.UUID {
-	newUUID, _ := uuid.Parse(strings.ReplaceAll(s, "-", "-"))
-	return newUUID
-}
-
 func tokenToRecord[T any](tokenID auth.TokenID[T], state auth.TokenState) record {
 	return record{
 		ID:       tokenID.ID.String(),
@@ -207,8 +206,8 @@ func recordToToken[T any](r record) (auth.TokenID[T], auth.TokenState) {
 		log.Warn().Err(err).Msg("casting record to token")
 	}
 	return auth.TokenID[T]{
-			ID:       id.ID[T]{UUID: unescapeUUID(r.ID)},
-			UserID:   id.ID[user.User]{UUID: unescapeUUID(r.UserID)},
+			ID:       id.ID[T]{UUID: god.Believe(uuid.Parse(r.ID))},
+			UserID:   id.ID[user.User]{UUID: god.Believe(uuid.Parse(r.UserID))},
 			DeviceID: auth.DeviceID(r.DeviceID),
 		}, auth.TokenState{
 			Status: parsedStatus,

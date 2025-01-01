@@ -69,7 +69,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 	}
 	updated, err := h.service.Update(c, id.ID[product.Product]{UUID: productID}, model)
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Internal error")
+		c.String(http.StatusInternalServerError, "internal error")
 		return
 	}
 
