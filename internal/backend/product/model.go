@@ -1,6 +1,8 @@
 package product
 
 import (
+	"github.com/samber/mo"
+
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 )
@@ -14,9 +16,9 @@ type Product struct {
 }
 
 type Options struct {
-	Name     Name     `json:"name"`
-	Category Category `json:"category"`
-	Forms    []Form   `json:"forms"`
+	Name     Name                `json:"name"`
+	Category mo.Option[Category] `json:"category"`
+	Forms    []Form              `json:"forms"`
 }
 
 type Category string

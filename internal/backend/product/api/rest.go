@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/product/service"
@@ -32,6 +33,7 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 // @Accept		json
 // @Param		product	body	product.Options	true	"product to create"
 // @Produce	json
+// @Security ApiKeyAuth
 // @Router		/product [post]
 func (h *ProductHandler) Create(c *gin.Context) {
 	var model product.Options
@@ -55,6 +57,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @Param		id		path	string			true	"product id"
 // @Param		product	body	product.Options	true	"product to update"
 // @Produce	json
+// @Security ApiKeyAuth
 // @Router		/product/{id} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
 	var model product.Options
@@ -69,6 +72,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 	}
 	updated, err := h.service.Update(c, id.ID[product.Product]{UUID: productID}, model)
 	if err != nil {
+		log.Err(err).Msg("updating product")
 		c.String(http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -84,6 +88,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 // @Param		id	path	string	true	"product id"
 // @Produce	json
 // @Router		/product/{id} [get]
+// @Security ApiKeyAuth
 func (h *ProductHandler) Get(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

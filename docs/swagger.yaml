@@ -26,15 +26,6 @@ definitions:
         type: string
     type: object
   product.Options:
-    properties:
-      category:
-        type: string
-      forms:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
     type: object
   shopmap.Options:
     properties:
@@ -134,6 +125,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Creates new product
       tags:
       - Product
@@ -151,6 +144,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Get product info
       tags:
       - Product
@@ -171,6 +166,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: Update existing new product
       tags:
       - Product

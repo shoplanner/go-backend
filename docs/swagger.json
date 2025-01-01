@@ -96,6 +96,11 @@
         },
         "/product": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -123,6 +128,11 @@
         },
         "/product/{id}": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -146,6 +156,11 @@
                 "responses": {}
             },
             "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -446,21 +461,7 @@
             }
         },
         "product.Options": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "forms": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
+            "type": "object"
         },
         "shopmap.Options": {
             "type": "object",

@@ -249,7 +249,6 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap, 
 	err := qtx.UpdateShopMap(ctx, sqlgen.UpdateShopMapParams{
 		OwnerID:   newModel.OwnerID.String(),
 		UpdatedAt: newModel.UpdatedAt.Time,
-		CreatedAt: newModel.CreatedAt.Time,
 		ID:        newModel.ID.String(),
 	})
 	if err != nil {

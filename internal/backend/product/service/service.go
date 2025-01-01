@@ -2,10 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
-
-	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"go-backend/internal/backend/product"
 	"go-backend/pkg/date"
@@ -13,36 +11,50 @@ import (
 )
 
 type repo interface {
-	GetByIDList(context.Context, []id.ID[product.Product]) ([]product.Product, error)
+	GetByListID(context.Context, []id.ID[product.Product]) ([]product.Product, error)
+	GetByID(context.Context, id.ID[product.Product]) (product.Product, error)
 	Create(context.Context, product.Product) error
-	Update(context.Context, product.Product) error
+	GetAndUpdate(
+		context.Context,
+		id.ID[product.Product],
+		func(product.Product) (product.Product, error),
+	) (product.Product, error)
 }
 
 type Service struct {
 	repo repo
-	log  zap.SugaredLogger
 	lock sync.RWMutex
 }
 
 func NewService(repo repo) *Service {
-	return &Service{repo: repo, log: *zap.NewNop().Sugar().Named("")}
+	return &Service{
+		repo: repo,
+		lock: sync.RWMutex{},
+	}
 }
 
 func (s *Service) ID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
-	var model []product.Product
-	var err error
-	lo.Synchronize(&s.lock).Do(func() {
-		model, err = s.repo.GetByIDList(ctx, []id.ID[product.Product]{productID})
-	})
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	return model[0], err
+	model, err := s.repo.GetByID(ctx, productID)
+	if err != nil {
+		return model, wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
+	}
+
+	return model, nil
 }
 
 func (s *Service) IDList(ctx context.Context, ids []id.ID[product.Product]) ([]product.Product, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	return s.repo.GetByIDList(ctx, ids)
+	models, err := s.repo.GetByListID(ctx, ids)
+	if err != nil {
+		return nil, wrapErr(fmt.Errorf("can't get products %v: %w", ids, err))
+	}
+
+	return models, nil
 }
 
 func (s *Service) Create(ctx context.Context, options product.Options) (product.Product, error) {
@@ -59,14 +71,28 @@ func (s *Service) Create(ctx context.Context, options product.Options) (product.
 	return full, s.repo.Create(ctx, full)
 }
 
-func (s *Service) Update(ctx context.Context, productID id.ID[product.Product], options product.Options) (product.Product, error) {
+func (s *Service) Update(ctx context.Context, productID id.ID[product.Product], options product.Options) (
+	product.Product,
+	error,
+) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	model, err := s.repo.GetByIDList(ctx, []id.ID[product.Product]{productID})
+	model, err := s.repo.GetAndUpdate(ctx, productID, func(p product.Product) (product.Product, error) {
+		p.Options = options
+		return p, nil
+	})
 	if err != nil {
-		return model[0], err
+		return model, err
 	}
 
-	return model[0], s.repo.Update(ctx, model[0])
+	return model, nil
+}
+
+func wrapErr(err error) error {
+	if err != nil {
+		return fmt.Errorf("product service: %w", err)
+	}
+
+	return nil
 }

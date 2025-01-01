@@ -9,7 +9,9 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	stdLog "log"
 	"net"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -18,6 +20,9 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
+	gormMySQL "gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"go-backend/internal/backend/auth"
 	authAPI "go-backend/internal/backend/auth/api"
@@ -26,9 +31,11 @@ import (
 	authService "go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
 	productAPI "go-backend/internal/backend/product/api"
-	"go-backend/internal/backend/shopmap/api"
-	"go-backend/internal/backend/shopmap/repo"
-	"go-backend/internal/backend/shopmap/service"
+	productRepo "go-backend/internal/backend/product/repo"
+	"go-backend/internal/backend/product/service"
+	shopMapAPI "go-backend/internal/backend/shopmap/api"
+	shopMapRepo "go-backend/internal/backend/shopmap/repo"
+	shopMapService "go-backend/internal/backend/shopmap/service"
 	swaggerAPI "go-backend/internal/backend/swagger/api"
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
@@ -62,6 +69,13 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
+
+	gormLog := logger.New(stdLog.New(os.Stdout, "\n", stdLog.LstdFlags), logger.Config{
+		Colorful:                  true,
+		IgnoreRecordNotFoundError: false,
+		ParameterizedQueries:      false,
+		LogLevel:                  logger.Info,
+	})
 
 	appCfg, err := config.ParseConfig(*configPath)
 	if err != nil {
@@ -109,6 +123,14 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to database")
 	}
 
+	doltCfg.DBName = envCfg.Database.Name
+	gormDB, err := gorm.Open(gormMySQL.Open(doltCfg.FormatDSN()), &gorm.Config{
+		Logger: gormLog,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("gorm: connecting to database")
+	}
+
 	if err = sqlDB.PingContext(ctx); err != nil {
 		log.Fatal().Err(err).Caller().Stack().Msg("ping DB")
 	} else {
@@ -132,7 +154,6 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing user repo")
 	}
-
 	accessRepo, err := authRepo.NewRedisRepo[auth.AccessToken](ctx, redisClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing access tokens repo")
@@ -141,9 +162,13 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing refresh tokens repo")
 	}
-	shopMapRepo, err := repo.NewShopMapRepo(ctx, sqlDB)
+	shopMapRepo, err := shopMapRepo.NewShopMapRepo(ctx, sqlDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't initialize shop map storage")
+	}
+	productRepo, err := productRepo.NewGormRepo(ctx, gormDB)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't initialize product storage")
 	}
 
 	// business logic
@@ -159,20 +184,23 @@ func main() {
 			RefreshTokenExpires: appCfg.Auth.RefreshTokenLiveTime,
 		},
 	)
-	shopMapService := service.NewService(userService, shopMapRepo)
+	shopMapService := shopMapService.NewService(userService, shopMapRepo)
+	productService := service.NewService(productRepo)
 
 	// API
 
 	jwtMiddleware := authAPI.NewAuthMiddleware(authService)
-	apiGroup := swaggerAPI.Init(router)
-	authAPI.RegisterREST(apiGroup, authService, jwtMiddleware)
 
+	apiGroup := swaggerAPI.Init(router)
+
+	// overrides role model
+	authAPI.RegisterREST(apiGroup, authService, jwtMiddleware)
 	userAPI.RegisterREST(apiGroup, userService, jwtMiddleware)
 
 	apiGroup.Use(jwtMiddleware.Middleware())
 
-	productAPI.RegisterREST(apiGroup, nil)
-	api.RegisterREST(apiGroup, shopMapService)
+	productAPI.RegisterREST(apiGroup, productService)
+	shopMapAPI.RegisterREST(apiGroup, shopMapService)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil && ctx.Err() == nil {

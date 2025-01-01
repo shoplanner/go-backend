@@ -104,6 +104,11 @@ const docTemplate = `{
         },
         "/product": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -131,6 +136,11 @@ const docTemplate = `{
         },
         "/product/{id}": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -154,6 +164,11 @@ const docTemplate = `{
                 "responses": {}
             },
             "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -454,21 +469,7 @@ const docTemplate = `{
             }
         },
         "product.Options": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "forms": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
+            "type": "object"
         },
         "shopmap.Options": {
             "type": "object",
