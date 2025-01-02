@@ -10,15 +10,15 @@ import (
 type Product struct {
 	Options
 
-	ID        id.ID[Product]           `json:"id"`
-	CreatedAt date.CreateDate[Product] `json:"created_at"`
-	UpdatedAt date.UpdateDate[Product] `json:"updated_at"`
+	ID        id.ID[Product]           `json:"id" swaggertype:"string"`
+	CreatedAt date.CreateDate[Product] `json:"created_at" swaggertype:"string"`
+	UpdatedAt date.UpdateDate[Product] `json:"updated_at" swaggertype:"string"`
 }
 
 type Options struct {
-	Name     Name                `json:"name"`
-	Category mo.Option[Category] `json:"category"`
-	Forms    []Form              `json:"forms"`
+	Name     Name                `json:"name" swaggertype:"string"`
+	Category mo.Option[Category] `json:"category" swaggertype:"string"`
+	Forms    []Form              `json:"forms" swaggertype:"array,string"`
 }
 
 type Category string

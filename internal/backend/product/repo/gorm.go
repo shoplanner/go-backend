@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -23,26 +24,26 @@ type Product struct {
 	CreatedAt  time.Time        `gorm:"notNull"`
 	UpdatedAt  time.Time        `gorm:"notNull"`
 	Name       string           `gorm:"size:256;notNull"`
-	CategoryID string           `gorm:"size:36"`
+	CategoryID sql.NullString   `gorm:"size:36"`
 	Category   *ProductCategory `gorm:"references:ID"`
 	Forms      []ProductForm
 }
 
 func (c *Product) BeforeSave(_ *gorm.DB) error {
-	if c.CategoryID != "" {
+	if !c.CategoryID.Valid {
 		return nil
 	}
 	if c.Category == nil {
 		return nil
 	}
 
-	c.CategoryID = c.Category.ID
+	c.CategoryID = sql.NullString{String: c.Category.Name, Valid: true}
 	return nil
 }
 
 type ProductCategory struct {
 	ID   string `gorm:"primaryKey;size:36"`
-	Name string `gorm:"notNull"`
+	Name string `gorm:"primaryKey;size:255"`
 }
 
 func (c *ProductCategory) BeforeSave(tx *gorm.DB) error {
@@ -60,8 +61,9 @@ func (c *ProductCategory) BeforeSave(tx *gorm.DB) error {
 }
 
 type ProductForm struct {
-	ProductID string `gorm:"primaryKey,size:36;foreignKey:ID"`
-	Name      string `gorm:"primaryKey"`
+	ProductID string `gorm:"size:36;references:ID"`
+	ID        string `gorm:"primaryKey,size:36"`
+	Name      string `gorm:"size:255"`
 }
 
 type GormRepo struct {
@@ -69,7 +71,7 @@ type GormRepo struct {
 }
 
 func NewGormRepo(ctx context.Context, db *gorm.DB) (*GormRepo, error) {
-	err := db.WithContext(ctx).AutoMigrate(new(Product), new(ProductCategory), new(ProductForm))
+	err := db.WithContext(ctx).AutoMigrate(new(ProductCategory), new(Product), new(ProductForm))
 	if err != nil {
 		return nil, fmt.Errorf("can't initialize product tables: %w", err)
 	}
@@ -86,7 +88,7 @@ func (r *GormRepo) GetAndUpdate(
 	error,
 ) {
 	var model product.Product
-	err := r.db.Unscoped().Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var entity Product
 		err := tx.WithContext(ctx).First(&entity, productID.UUID).Error
 		if err != nil {
@@ -99,10 +101,14 @@ func (r *GormRepo) GetAndUpdate(
 		}
 		entity = modelToEntity(model)
 
-		err = tx.WithContext(ctx).Unscoped().Model(&entity).Unscoped().
-			Association("Forms").Replace(entity.Forms)
+		err = tx.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Model(&Product{ID: entity.ID}).
+			Association("Forms").Unscoped().Replace(entity.Forms)
 		if err != nil {
 			return fmt.Errorf("can't update product %s associations: %w", productID, err)
+		}
+		err = tx.WithContext(ctx).Save(&entity).Error
+		if err != nil {
+			return fmt.Errorf("can't update product %s: %w", productID, err)
 		}
 
 		return nil
@@ -117,7 +123,7 @@ func (r *GormRepo) GetAndUpdate(
 func (r *GormRepo) GetByID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
 	var entity Product
 	err := r.db.WithContext(ctx).Preload("Category").Preload("Forms").
-		First(&entity, "id = ?", productID.UUID.String()).Error
+		First(&entity, "id = ?", productID.String()).Error
 	if err != nil {
 		return product.Product{}, wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
 	}
@@ -192,10 +198,14 @@ func modelToEntity(model product.Product) Product {
 		CreatedAt:  model.CreatedAt.Time,
 		UpdatedAt:  model.UpdatedAt.Time,
 		Name:       string(model.Name),
-		CategoryID: "", // will be set in hooks
+		CategoryID: sql.NullString{String: "", Valid: false}, // will be set in hooks
 		Category:   category,
 		Forms: lo.Map(model.Forms, func(item product.Form, _ int) ProductForm {
-			return ProductForm{ProductID: model.ID.String(), Name: string(item)}
+			return ProductForm{
+				ProductID: model.ID.String(),
+				ID:        uuid.NewString(),
+				Name:      string(item),
+			}
 		}),
 	}
 }

@@ -469,7 +469,21 @@ const docTemplate = `{
             }
         },
         "product.Options": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "forms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "shopmap.Options": {
             "type": "object",
@@ -485,7 +499,7 @@ const docTemplate = `{
                     "type": "array",
                     "uniqueItems": true,
                     "items": {
-                        "type": "object"
+                        "type": "string"
                     }
                 }
             }

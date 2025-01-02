@@ -26,6 +26,15 @@ definitions:
         type: string
     type: object
   product.Options:
+    properties:
+      category:
+        type: string
+      forms:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
     type: object
   shopmap.Options:
     properties:
@@ -36,7 +45,7 @@ definitions:
         uniqueItems: true
       viewers_id:
         items:
-          type: object
+          type: string
         type: array
         uniqueItems: true
     type: object
