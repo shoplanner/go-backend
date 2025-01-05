@@ -62,7 +62,7 @@ func (c *ProductCategory) BeforeSave(tx *gorm.DB) error {
 
 type ProductForm struct {
 	ProductID string `gorm:"size:36;references:ID"`
-	ID        string `gorm:"primaryKey,size:36"`
+	ID        string `gorm:"primaryKey;size:36"`
 	Name      string `gorm:"size:255"`
 }
 

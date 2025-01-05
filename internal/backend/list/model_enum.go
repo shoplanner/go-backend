@@ -98,6 +98,92 @@ func (x *ExecStatus) UnmarshalText(text []byte) error {
 }
 
 const (
+	// MemberTypeOwner is a MemberType of type Owner.
+	MemberTypeOwner MemberType = iota
+	// MemberTypeEditor is a MemberType of type Editor.
+	MemberTypeEditor
+	// MemberTypeExecuting is a MemberType of type Executing.
+	MemberTypeExecuting
+)
+
+var ErrInvalidMemberType = fmt.Errorf("not a valid MemberType, try [%s]", strings.Join(_MemberTypeNames, ", "))
+
+const _MemberTypeName = "ownereditorexecuting"
+
+var _MemberTypeNames = []string{
+	_MemberTypeName[0:5],
+	_MemberTypeName[5:11],
+	_MemberTypeName[11:20],
+}
+
+// MemberTypeNames returns a list of possible string values of MemberType.
+func MemberTypeNames() []string {
+	tmp := make([]string, len(_MemberTypeNames))
+	copy(tmp, _MemberTypeNames)
+	return tmp
+}
+
+// MemberTypeValues returns a list of the values for MemberType
+func MemberTypeValues() []MemberType {
+	return []MemberType{
+		MemberTypeOwner,
+		MemberTypeEditor,
+		MemberTypeExecuting,
+	}
+}
+
+var _MemberTypeMap = map[MemberType]string{
+	MemberTypeOwner:     _MemberTypeName[0:5],
+	MemberTypeEditor:    _MemberTypeName[5:11],
+	MemberTypeExecuting: _MemberTypeName[11:20],
+}
+
+// String implements the Stringer interface.
+func (x MemberType) String() string {
+	if str, ok := _MemberTypeMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("MemberType(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x MemberType) IsValid() bool {
+	_, ok := _MemberTypeMap[x]
+	return ok
+}
+
+var _MemberTypeValue = map[string]MemberType{
+	_MemberTypeName[0:5]:   MemberTypeOwner,
+	_MemberTypeName[5:11]:  MemberTypeEditor,
+	_MemberTypeName[11:20]: MemberTypeExecuting,
+}
+
+// ParseMemberType attempts to convert a string to a MemberType.
+func ParseMemberType(name string) (MemberType, error) {
+	if x, ok := _MemberTypeValue[name]; ok {
+		return x, nil
+	}
+	return MemberType(0), fmt.Errorf("%s is %w", name, ErrInvalidMemberType)
+}
+
+// MarshalText implements the text marshaller method.
+func (x MemberType) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *MemberType) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseMemberType(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// StateStatusWaiting is a StateStatus of type Waiting.
 	StateStatusWaiting StateStatus = iota
 	// StateStatusMissing is a StateStatus of type Missing.

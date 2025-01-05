@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,9 +22,10 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 
 	group := r.Group("product")
 
-	group.GET("/:id", h.Get)
-	group.PUT("/:id", h.Update)
+	group.GET("/id/:id", h.Get)
+	group.PUT("/id/:id", h.Update)
 	group.POST("", h.Create)
+	group.GET("/list/:ids", h.GetList)
 }
 
 // @Summary	Creates new product
@@ -58,7 +60,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @Param		product	body	product.Options	true	"product to update"
 // @Produce	json
 // @Security ApiKeyAuth
-// @Router		/product/{id} [put]
+// @Router		/product/id/{id} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
 	var model product.Options
 	productID, err := uuid.Parse(c.Param("id"))
@@ -87,7 +89,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 // @Accept		json
 // @Param		id	path	string	true	"product id"
 // @Produce	json
-// @Router		/product/{id} [get]
+// @Router		/product/id/{id} [get]
 // @Security ApiKeyAuth
 func (h *ProductHandler) Get(c *gin.Context) {
 	productID, err := uuid.Parse(c.Param("id"))
@@ -102,4 +104,36 @@ func (h *ProductHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, model)
+}
+
+// @Summary	Get products info
+// @ID			product-get-list
+//
+// @Tags		Product
+// @Accept		json
+// @Param		ids	path	[]string	true	"product id"
+// @Produce	json
+// @Router		/product/list/{ids} [get]
+// @Security ApiKeyAuth
+func (h *ProductHandler) GetList(c *gin.Context) {
+	rawIDs := strings.Split(c.Param("ids"), ",")
+
+	parsedIDs := make([]id.ID[product.Product], 0, len(rawIDs))
+	for _, rawID := range rawIDs {
+		parsedID, err := uuid.Parse(rawID)
+		if err != nil {
+			c.String(http.StatusBadRequest, "id must be valid uuid")
+			return
+		}
+
+		parsedIDs = append(parsedIDs, id.ID[product.Product]{UUID: parsedID})
+	}
+
+	models, err := h.service.IDList(c, parsedIDs)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	c.JSON(http.StatusOK, models)
 }

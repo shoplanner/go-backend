@@ -26,13 +26,21 @@ type ProductState struct {
 	Status    StateStatus     `json:"status"`
 }
 
+// ENUM(owner,editor,executing)
+type MemberType int
+
+type Member struct {
+	UserID   id.ID[user.User] `json:"user_id"`
+	UserName user.Login       `json:"username"`
+	Type     MemberType       `json:"type"`
+}
+
 type ProductList struct {
 	Options
 
 	ID        id.ID[ProductList]           `json:"id"`
 	UpdatedAt date.UpdateDate[ProductList] `json:"updated_at"`
 	CreatedAt date.CreateDate[ProductList] `json:"created_at"`
-	OwnerID   id.ID[user.User]             `json:"owner_id"`
 }
 
 type Options struct {

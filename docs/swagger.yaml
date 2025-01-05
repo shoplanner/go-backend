@@ -139,7 +139,7 @@ paths:
       summary: Creates new product
       tags:
       - Product
-  /product/{id}:
+  /product/id/{id}:
     get:
       consumes:
       - application/json
@@ -178,6 +178,28 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Update existing new product
+      tags:
+      - Product
+  /product/list/{ids}:
+    get:
+      consumes:
+      - application/json
+      operationId: product-get-list
+      parameters:
+      - collectionFormat: csv
+        description: product id
+        in: path
+        items:
+          type: string
+        name: ids
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: Get products info
       tags:
       - Product
   /shopmap:

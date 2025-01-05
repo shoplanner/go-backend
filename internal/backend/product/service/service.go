@@ -68,7 +68,11 @@ func (s *Service) Create(ctx context.Context, options product.Options) (product.
 		UpdatedAt: date.NewUpdateDate[product.Product](),
 	}
 
-	return full, s.repo.Create(ctx, full)
+	if err := s.repo.Create(ctx, full); err != nil {
+		return product.Product{}, wrapErr(fmt.Errorf("can't create product: %w", err))
+	}
+
+	return full, nil
 }
 
 func (s *Service) Update(ctx context.Context, productID id.ID[product.Product], options product.Options) (
@@ -83,7 +87,7 @@ func (s *Service) Update(ctx context.Context, productID id.ID[product.Product], 
 		return p, nil
 	})
 	if err != nil {
-		return model, err
+		return model, wrapErr(fmt.Errorf("can't update product: %w", err))
 	}
 
 	return model, nil

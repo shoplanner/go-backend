@@ -134,7 +134,7 @@ const docTemplate = `{
                 "responses": {}
             }
         },
-        "/product/{id}": {
+        "/product/id/{id}": {
             "get": {
                 "security": [
                     {
@@ -193,6 +193,40 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/product.Options"
                         }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/product/list/{ids}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Product"
+                ],
+                "summary": "Get products info",
+                "operationId": "product-get-list",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "product id",
+                        "name": "ids",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {}

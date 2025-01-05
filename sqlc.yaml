@@ -1,0 +1,35 @@
+version: "2"
+sql:
+  - engine: "mysql"
+    queries:
+      - "internal/backend/product/repo/query.sql"
+      - "internal/backend/product/repo/schema.sql"
+    schema:
+      - "internal/backend/product/repo/schema.sql"
+    gen:
+      go:
+        sql_package: "database/sql"
+        sql_driver: "github.com/go-sql-driver/mysql"
+        output_batch_file_name: batch.go
+        output_db_file_name: db.go
+        output_models_file_name: models.go
+        output_querier_file_name: querier.go
+        package: "sqlgen"
+        out: "internal/backend/product/repo/sqlgen"
+  - engine: "mysql"
+    queries:
+      - "internal/backend/favorite/repo/query.sql"
+      - "internal/backend/favorite/repo/schema.sql"
+    schema:
+      - "internal/backend/favorite/repo/schema.sql"
+      - "internal/backend/product/repo/schema.sql"
+    gen:
+      go:
+        sql_package: "database/sql"
+        sql_driver: "github.com/go-sql-driver/mysql"
+        output_batch_file_name: batch.go
+        output_db_file_name: db.go
+        output_models_file_name: models.go
+        output_querier_file_name: querier.go
+        package: "sqlgen"
+        out: "internal/backend/favorite/repo/sqlgen"

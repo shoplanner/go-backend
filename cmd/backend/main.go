@@ -19,6 +19,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/redis/rueidis"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	gormMySQL "gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -30,9 +31,11 @@ import (
 	authRepo "go-backend/internal/backend/auth/repo"
 	authService "go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
+	"go-backend/internal/backend/favorite/repo"
+	"go-backend/internal/backend/favorite/service"
 	productAPI "go-backend/internal/backend/product/api"
 	productRepo "go-backend/internal/backend/product/repo"
-	"go-backend/internal/backend/product/service"
+	productService "go-backend/internal/backend/product/service"
 	shopMapAPI "go-backend/internal/backend/shopmap/api"
 	shopMapRepo "go-backend/internal/backend/shopmap/repo"
 	shopMapService "go-backend/internal/backend/shopmap/service"
@@ -40,6 +43,7 @@ import (
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
+	"go-backend/pkg/bd"
 	"go-backend/pkg/hashing"
 )
 
@@ -54,6 +58,8 @@ const clientName = "shoplanner"
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
+	parentLogger := zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
+
 	if err := godotenv.Load(); err != nil {
 		log.Info().Err(err).Msg("can't load .env file")
 	}
@@ -122,8 +128,10 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to database")
 	}
+	sqlAdapter := bd.NewDB(sqlDB, parentLogger.With().Logger())
 
 	doltCfg.DBName = envCfg.Database.Name
+	fmt.Println(doltCfg.FormatDSN())
 	gormDB, err := gorm.Open(gormMySQL.Open(doltCfg.FormatDSN()), &gorm.Config{
 		Logger: gormLog,
 	})
@@ -137,7 +145,7 @@ func main() {
 		log.Info().Caller().Msg("DoltDB ping OK")
 	}
 
-	_, err = sqlDB.ExecContext(ctx, fmt.Sprintf("create database if not exists %s", envCfg.Database.Name))
+	_, err = sqlAdapter.ExecContext(ctx, fmt.Sprintf("create database if not exists %s", envCfg.Database.Name))
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing database")
 	}
@@ -150,7 +158,7 @@ func main() {
 		log.Fatal().Err(err).Msg("enabling load data in DB")
 	}
 
-	userDB, err := userRepo.NewRepo(ctx, sqlDB)
+	userDB, err := userRepo.NewRepo(ctx, sqlAdapter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing user repo")
 	}
@@ -170,6 +178,10 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't initialize product storage")
 	}
+	favoritesRepo, err := repo.NewRepo(ctx, sqlAdapter)
+	if err != nil {
+		parentLogger.Fatal().Err(err).Msg("initializing favorites repo")
+	}
 
 	// business logic
 
@@ -185,7 +197,8 @@ func main() {
 		},
 	)
 	shopMapService := shopMapService.NewService(userService, shopMapRepo)
-	productService := service.NewService(productRepo)
+	productService := productService.NewService(productRepo)
+	favoriteService := service.NewService(favoritesRepo)
 
 	// API
 

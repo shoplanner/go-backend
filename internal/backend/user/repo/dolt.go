@@ -7,6 +7,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 
 	"go-backend/internal/backend/user"
 	"go-backend/internal/backend/user/repo/sqlgen"
@@ -17,12 +18,23 @@ import (
 
 //go:generate $SQLC_HELPER
 
+type User struct {
+	ID    string `gorm:"primaryKey;size:36"`
+	Login string `gorm:"size:255"`
+	Hash  string
+	Role  int32
+}
+
 type Repo struct {
 	queries *sqlgen.Queries
 }
 
-func NewRepo(ctx context.Context, conn sqlgen.DBTX) (*Repo, error) {
+func NewRepo(ctx context.Context, conn sqlgen.DBTX, gormDB *gorm.DB) (*Repo, error) {
 	q := sqlgen.New(conn)
+
+	if err := gormDB.AutoMigrate(new(User)); err != nil {
+		return nil, fmt.Errorf("can't create user tables: %w", err)
+	}
 
 	if err := q.InitUsers(ctx); err != nil {
 		return nil, fmt.Errorf("can't init users table: %w", err)
