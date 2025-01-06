@@ -27,6 +27,7 @@ type User struct {
 
 type Repo struct {
 	queries *sqlgen.Queries
+	db      *gorm.DB
 }
 
 func NewRepo(ctx context.Context, conn sqlgen.DBTX, gormDB *gorm.DB) (*Repo, error) {
@@ -39,7 +40,10 @@ func NewRepo(ctx context.Context, conn sqlgen.DBTX, gormDB *gorm.DB) (*Repo, err
 	if err := q.InitUsers(ctx); err != nil {
 		return nil, fmt.Errorf("can't init users table: %w", err)
 	}
-	return &Repo{queries: q}, nil
+	return &Repo{
+		queries: q,
+		db:      gormDB,
+	}, nil
 }
 
 func (r *Repo) GetByLogin(ctx context.Context, login user.Login) (user.User, error) {
