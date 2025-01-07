@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/mo"
 
 	"go-backend/internal/backend/favorite"
 	"go-backend/internal/backend/product"
@@ -30,14 +32,28 @@ func NewService(repo favoritesRepo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) AddProducts(ctx context.Context, userID id.ID[user.User], productIDs []id.ID[product.Product]) (
+func (s *Service) AddProducts(
+	ctx context.Context,
+	listID id.ID[favorite.List],
+	userID id.ID[user.User],
+	productIDs []id.ID[product.Product],
+) (
 	favorite.List,
 	error,
 ) {
-	model, err := s.repoGetAndUpdate(ctx, userID, func(list favorite.List) (favorite.List, error) {
+	model, err := s.repoGetAndUpdate(ctx, listID, userID, func(list favorite.List) (favorite.List, error) {
+
+		if list
+
 		for _, productID := range productIDs {
 			list.Products = append(list.Products, favorite.Favorite{
-				Product:   product.Product{ID: productID},
+				ListID: listID,
+				Product: product.Product{
+					Options:   product.Options{Name: "", Category: mo.None[product.Category](), Forms: []product.Form{}},
+					ID:        productID,
+					CreatedAt: date.CreateDate[product.Product]{Time: time.Time{}},
+					UpdatedAt: date.UpdateDate[product.Product]{Time: time.Time{}},
+				},
 				CreatedAt: date.NewCreateDate[favorite.Favorite](),
 				UpdatedAt: date.NewUpdateDate[favorite.Favorite](),
 			})
@@ -57,6 +73,7 @@ func (s *Service) Delete(userID uuid.UUID, productID uuid.UUID) error {
 
 func (s *Service) repoGetAndUpdate(
 	ctx context.Context,
+	listID id.ID[favorite.List],
 	userID id.ID[user.User],
 	updateFunc func(favorite.List) (favorite.List, error),
 ) (favorite.List, error) {

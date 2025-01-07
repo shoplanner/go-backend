@@ -1,11 +1,16 @@
 package favorite
 
 import (
+	"fmt"
+
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
+
+//go:generate go-enum --marshal --names --values
 
 type Favorite struct {
 	ListID    id.ID[List]               `json:"list_id"`
@@ -14,7 +19,7 @@ type Favorite struct {
 	UpdatedAt date.UpdateDate[Favorite] `json:"updated_at"`
 }
 
-// ENUM(admin=1,viewer)
+// ENUM(admin=1,editor,viewer)
 type MemberType int32
 
 // ENUM(personal=1,group)
@@ -34,4 +39,16 @@ type List struct {
 	UpdatedAt date.UpdateDate[List] `json:"updated_at"`
 	Products  []Favorite            `json:"products"`
 	Type      ListType              `json:"type"`
+}
+
+func (l List) AllowedToEdit(userID id.ID[user.User]) error {
+	for _, member := range l.Members {
+		if member.UserID == userID && member.Type <= MemberTypeEditor {
+			return nil
+		} else if member.UserID == userID {
+			return fmt.Errorf("%w: member role is not enough", myerr.ErrForbidden)
+		}
+	}
+
+	return fmt.Errorf("%w: user is not a member", myerr.ErrForbidden)
 }
