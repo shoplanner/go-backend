@@ -2,6 +2,7 @@ package favorite
 
 import (
 	"fmt"
+	"slices"
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
@@ -11,6 +12,24 @@ import (
 )
 
 //go:generate go-enum --marshal --names --values
+
+func ErrUserNotMember(listID id.ID[List], userID id.ID[user.User]) error {
+	return fmt.Errorf(
+		"%w: user %s is not a member of list %s",
+		myerr.ErrForbidden,
+		userID,
+		listID,
+	)
+}
+
+func ErrProductNotFound(listID id.ID[List], productID id.ID[product.Product]) error {
+	return fmt.Errorf(
+		"%w: product %s in favorites list %s",
+		myerr.ErrNotFound,
+		productID,
+		listID,
+	)
+}
 
 type Favorite struct {
 	ListID    id.ID[List]               `json:"list_id"`
@@ -50,5 +69,17 @@ func (l List) AllowedToEdit(userID id.ID[user.User]) error {
 		}
 	}
 
-	return fmt.Errorf("%w: user is not a member", myerr.ErrForbidden)
+	return ErrUserNotMember(l.ID, userID)
+}
+
+func (l List) AllowedToView(userID id.ID[user.User]) error {
+	exists := slices.ContainsFunc(l.Members, func(e Member) bool {
+		return e.UserID == userID
+	})
+
+	if exists {
+		return ErrUserNotMember(l.ID, userID)
+	}
+
+	return nil
 }

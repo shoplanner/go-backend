@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"github.com/samber/mo"
 
 	"go-backend/internal/backend/favorite"
@@ -13,11 +14,13 @@ import (
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
+	"go-backend/pkg/ph"
 )
 
 type favoritesRepo interface {
-	Get(ctx context.Context, userID uuid.UUID) (favorite.List, error)
-	AddFavorite(context.Context, favorite.Favorite) (favorite.List, error)
+	GetByID(context.Context, id.ID[favorite.List]) (favorite.List, error)
+	GetByUserID(context.Context, id.ID[user.User]) ([]favorite.List, error)
 	GetAndUpdate(context.Context, id.ID[user.User], func(list favorite.List) (favorite.List, error)) (
 		favorite.List,
 		error,
@@ -42,9 +45,6 @@ func (s *Service) AddProducts(
 	error,
 ) {
 	model, err := s.repoGetAndUpdate(ctx, listID, userID, func(list favorite.List) (favorite.List, error) {
-
-		if list
-
 		for _, productID := range productIDs {
 			list.Products = append(list.Products, favorite.Favorite{
 				ListID: listID,
@@ -67,8 +67,65 @@ func (s *Service) AddProducts(
 	return model, nil
 }
 
-func (s *Service) Delete(userID uuid.UUID, productID uuid.UUID) error {
-	panic("Not implemented")
+func (s *Service) DeleteProducts(ctx context.Context,
+	listID id.ID[favorite.List],
+	userID id.ID[user.User],
+	productIDs []id.ID[product.Product],
+) (
+	favorite.List,
+	error,
+) {
+	model, err := s.repoGetAndUpdate(ctx, listID, userID, func(list favorite.List) (favorite.List, error) {
+		productExists := make(map[string]int, len(list.Products))
+		for i, product := range list.Products {
+			productExists[product.Product.ID.String()] = i
+		}
+
+		for _, productID := range productIDs {
+			if _, exists := productExists[productID.String()]; !exists {
+				return list, favorite.ErrProductNotFound(listID, productID)
+			}
+			delete(productExists, productID.String())
+		}
+
+		list.Products = make([]favorite.Favorite, len(productExists))
+
+		return list, nil
+	})
+	if err != nil {
+		return model, err
+	}
+
+	return model, nil
+}
+
+func (s *Service) GetListByID(
+	ctx context.Context,
+	listID id.ID[favorite.List],
+	userID id.ID[user.User],
+) (
+	favorite.List,
+	error,
+) {
+	model, err := s.repo.GetByID(ctx, listID)
+	if err != nil {
+		return favorite.List{}, fmt.Errorf("can't get list %s: %w", listID, err)
+	}
+
+	if err := model.AllowedToView(userID); err != nil {
+		return favorite.List{}, err
+	}
+
+	return model, nil
+}
+
+func (s *Service) GetListsByUserID(ctx context.Context, userID id.ID[user.User]) ([]favorite.List, error) {
+	models, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("can't get favorites lists of user %s: %w", userID, err)
+	}
+
+	return models, nil
 }
 
 func (s *Service) repoGetAndUpdate(
