@@ -31,8 +31,9 @@ import (
 	authRepo "go-backend/internal/backend/auth/repo"
 	authService "go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
-	"go-backend/internal/backend/favorite/repo"
-	"go-backend/internal/backend/favorite/service"
+	favoritesAPI "go-backend/internal/backend/favorite/api"
+	favoritesRepo "go-backend/internal/backend/favorite/repo"
+	favoritesService "go-backend/internal/backend/favorite/service"
 	productAPI "go-backend/internal/backend/product/api"
 	productRepo "go-backend/internal/backend/product/repo"
 	productService "go-backend/internal/backend/product/service"
@@ -158,7 +159,7 @@ func main() {
 		log.Fatal().Err(err).Msg("enabling load data in DB")
 	}
 
-	userDB, err := userRepo.NewRepo(ctx, sqlAdapter)
+	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("initializing user repo")
 	}
@@ -178,7 +179,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't initialize product storage")
 	}
-	favoritesRepo, err := repo.NewRepo(ctx, sqlAdapter)
+	favoritesRepo, err := favoritesRepo.NewRepo(ctx, gormDB)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing favorites repo")
 	}
@@ -198,7 +199,7 @@ func main() {
 	)
 	shopMapService := shopMapService.NewService(userService, shopMapRepo)
 	productService := productService.NewService(productRepo)
-	favoriteService := service.NewService(favoritesRepo)
+	favoriteService := favoritesService.NewService(favoritesRepo, userService)
 
 	// API
 
@@ -214,6 +215,7 @@ func main() {
 
 	productAPI.RegisterREST(apiGroup, productService)
 	shopMapAPI.RegisterREST(apiGroup, shopMapService)
+	favoritesAPI.RegisterREST(apiGroup, favoriteService, parentLogger.With().Logger())
 
 	go func() {
 		if err = router.RunListener(listener); err != nil && ctx.Err() == nil {

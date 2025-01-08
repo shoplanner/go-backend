@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/samber/mo"
 
 	"go-backend/internal/backend/favorite"
@@ -14,25 +12,31 @@ import (
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
-	"go-backend/pkg/myerr"
-	"go-backend/pkg/ph"
 )
 
 type favoritesRepo interface {
+	CreateList(context.Context, favorite.List) error
 	GetByID(context.Context, id.ID[favorite.List]) (favorite.List, error)
 	GetByUserID(context.Context, id.ID[user.User]) ([]favorite.List, error)
-	GetAndUpdate(context.Context, id.ID[user.User], func(list favorite.List) (favorite.List, error)) (
+	GetAndUpdate(context.Context, id.ID[favorite.List], func(list favorite.List) (favorite.List, error)) (
 		favorite.List,
 		error,
 	)
 }
 
+type users interface {
+	RegisterSubscriber(user.Subscriber)
+}
+
+// Service is the service
 type Service struct {
 	repo favoritesRepo
 }
 
-func NewService(repo favoritesRepo) *Service {
-	return &Service{repo: repo}
+func NewService(repo favoritesRepo, users users) *Service {
+	s := &Service{repo: repo}
+	users.RegisterSubscriber(s)
+	return nil
 }
 
 func (s *Service) AddProducts(
@@ -44,7 +48,10 @@ func (s *Service) AddProducts(
 	favorite.List,
 	error,
 ) {
-	model, err := s.repoGetAndUpdate(ctx, listID, userID, func(list favorite.List) (favorite.List, error) {
+	model, err := s.repoGetAndUpdate(ctx, listID, func(list favorite.List) (favorite.List, error) {
+		if err := list.AllowedToEdit(userID); err != nil {
+			return favorite.List{}, fmt.Errorf("user %s is not allowed to edit list %s: %w", userID, listID, err)
+		}
 		for _, productID := range productIDs {
 			list.Products = append(list.Products, favorite.Favorite{
 				ListID: listID,
@@ -75,10 +82,19 @@ func (s *Service) DeleteProducts(ctx context.Context,
 	favorite.List,
 	error,
 ) {
-	model, err := s.repoGetAndUpdate(ctx, listID, userID, func(list favorite.List) (favorite.List, error) {
-		productExists := make(map[string]int, len(list.Products))
-		for i, product := range list.Products {
-			productExists[product.Product.ID.String()] = i
+	model, err := s.repoGetAndUpdate(ctx, listID, func(list favorite.List) (favorite.List, error) {
+		type idx struct {
+			idx int
+			p   favorite.Favorite
+		}
+
+		if err := list.AllowedToEdit(userID); err != nil {
+			return favorite.List{}, fmt.Errorf("user %s is not allowed to edit list %s: %w", userID, listID, err)
+		}
+
+		productExists := make(map[string]idx, len(list.Products))
+		for i, p := range list.Products {
+			productExists[p.Product.ID.String()] = idx{idx: i, p: p}
 		}
 
 		for _, productID := range productIDs {
@@ -89,6 +105,9 @@ func (s *Service) DeleteProducts(ctx context.Context,
 		}
 
 		list.Products = make([]favorite.Favorite, len(productExists))
+		for _, item := range productExists {
+			list.Products[item.idx] = item.p
+		}
 
 		return list, nil
 	})
@@ -112,8 +131,8 @@ func (s *Service) GetListByID(
 		return favorite.List{}, fmt.Errorf("can't get list %s: %w", listID, err)
 	}
 
-	if err := model.AllowedToView(userID); err != nil {
-		return favorite.List{}, err
+	if err = model.AllowedToView(userID); err != nil {
+		return favorite.List{}, fmt.Errorf("user %s is not allowed to view list %s: %w", userID, listID, err)
 	}
 
 	return model, nil
@@ -131,12 +150,19 @@ func (s *Service) GetListsByUserID(ctx context.Context, userID id.ID[user.User])
 func (s *Service) repoGetAndUpdate(
 	ctx context.Context,
 	listID id.ID[favorite.List],
-	userID id.ID[user.User],
 	updateFunc func(favorite.List) (favorite.List, error),
 ) (favorite.List, error) {
-	model, err := s.repo.GetAndUpdate(ctx, userID, updateFunc)
+	model, err := s.repo.GetAndUpdate(ctx, listID, updateFunc)
 	if err != nil {
 		return model, fmt.Errorf("can't update repo: %w", err)
 	}
 	return model, nil
+}
+
+func (s *Service) createList(ctx context.Context, list favorite.List) error {
+	if err := s.repo.CreateList(ctx, list); err != nil {
+		return fmt.Errorf("can't save new list to storage: %w", err)
+	}
+
+	return nil
 }

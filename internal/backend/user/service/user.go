@@ -26,18 +26,20 @@ type repo interface {
 }
 
 type Service struct {
-	lock      sync.RWMutex
-	hash      hashMaster
-	userRepo  repo
-	validator *validator.Validate
+	lock        sync.RWMutex
+	hash        hashMaster
+	subscribers []user.Subscriber
+	userRepo    repo
+	validator   *validator.Validate
 }
 
 func NewService(userRepo repo, hash hashMaster) *Service {
 	return &Service{
-		hash:      hash,
-		userRepo:  userRepo,
-		validator: validator.New(),
-		lock:      sync.RWMutex{},
+		lock:        sync.RWMutex{},
+		hash:        hash,
+		subscribers: []user.Subscriber{},
+		userRepo:    userRepo,
+		validator:   validator.New(),
 	}
 }
 
@@ -63,6 +65,13 @@ func (s *Service) Create(ctx context.Context, options user.CreateOptions) (user.
 
 	if err = s.userRepo.Create(ctx, newUser); err != nil {
 		return user.User{}, fmt.Errorf("can't save user to storage: %w", err)
+	}
+
+	for _, sub := range s.subscribers {
+		err = sub.HandleUserCreated(ctx, newUser)
+		if err != nil {
+			log.Err(err).Msg("subscriber on creating user")
+		}
 	}
 
 	return newUser, nil
@@ -107,4 +116,11 @@ func (s *Service) GetByID(ctx context.Context, userID id.ID[user.User]) (user.Us
 	}
 
 	return model, nil
+}
+
+func (s *Service) RegisterSubscriber(subscriber user.Subscriber) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.subscribers = append(s.subscribers, subscriber)
 }

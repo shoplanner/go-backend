@@ -38,7 +38,7 @@ type Favorite struct {
 	UpdatedAt date.UpdateDate[Favorite] `json:"updated_at"`
 }
 
-// ENUM(admin=1,editor,viewer)
+// ENUM(owner=1,admin,editor,viewer)
 type MemberType int32
 
 // ENUM(personal=1,group)
@@ -53,10 +53,10 @@ type Member struct {
 
 type List struct {
 	ID        id.ID[List]           `json:"id"`
-	Members   []Member              `json:"members"`
+	Members   []Member              `json:"members" validate:"unique=UserID"`
 	CreatedAt date.CreateDate[List] `json:"created_at"`
 	UpdatedAt date.UpdateDate[List] `json:"updated_at"`
-	Products  []Favorite            `json:"products"`
+	Products  []Favorite            `json:"products" validate:"unique=Product.ID"`
 	Type      ListType              `json:"type"`
 }
 

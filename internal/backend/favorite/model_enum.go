@@ -92,8 +92,10 @@ func (x *ListType) UnmarshalText(text []byte) error {
 }
 
 const (
+	// MemberTypeOwner is a MemberType of type Owner.
+	MemberTypeOwner MemberType = iota + 1
 	// MemberTypeAdmin is a MemberType of type Admin.
-	MemberTypeAdmin MemberType = iota + 1
+	MemberTypeAdmin
 	// MemberTypeEditor is a MemberType of type Editor.
 	MemberTypeEditor
 	// MemberTypeViewer is a MemberType of type Viewer.
@@ -102,12 +104,13 @@ const (
 
 var ErrInvalidMemberType = fmt.Errorf("not a valid MemberType, try [%s]", strings.Join(_MemberTypeNames, ", "))
 
-const _MemberTypeName = "admineditorviewer"
+const _MemberTypeName = "owneradmineditorviewer"
 
 var _MemberTypeNames = []string{
 	_MemberTypeName[0:5],
-	_MemberTypeName[5:11],
-	_MemberTypeName[11:17],
+	_MemberTypeName[5:10],
+	_MemberTypeName[10:16],
+	_MemberTypeName[16:22],
 }
 
 // MemberTypeNames returns a list of possible string values of MemberType.
@@ -120,6 +123,7 @@ func MemberTypeNames() []string {
 // MemberTypeValues returns a list of the values for MemberType
 func MemberTypeValues() []MemberType {
 	return []MemberType{
+		MemberTypeOwner,
 		MemberTypeAdmin,
 		MemberTypeEditor,
 		MemberTypeViewer,
@@ -127,9 +131,10 @@ func MemberTypeValues() []MemberType {
 }
 
 var _MemberTypeMap = map[MemberType]string{
-	MemberTypeAdmin:  _MemberTypeName[0:5],
-	MemberTypeEditor: _MemberTypeName[5:11],
-	MemberTypeViewer: _MemberTypeName[11:17],
+	MemberTypeOwner:  _MemberTypeName[0:5],
+	MemberTypeAdmin:  _MemberTypeName[5:10],
+	MemberTypeEditor: _MemberTypeName[10:16],
+	MemberTypeViewer: _MemberTypeName[16:22],
 }
 
 // String implements the Stringer interface.
@@ -148,9 +153,10 @@ func (x MemberType) IsValid() bool {
 }
 
 var _MemberTypeValue = map[string]MemberType{
-	_MemberTypeName[0:5]:   MemberTypeAdmin,
-	_MemberTypeName[5:11]:  MemberTypeEditor,
-	_MemberTypeName[11:17]: MemberTypeViewer,
+	_MemberTypeName[0:5]:   MemberTypeOwner,
+	_MemberTypeName[5:10]:  MemberTypeAdmin,
+	_MemberTypeName[10:16]: MemberTypeEditor,
+	_MemberTypeName[16:22]: MemberTypeViewer,
 }
 
 // ParseMemberType attempts to convert a string to a MemberType.

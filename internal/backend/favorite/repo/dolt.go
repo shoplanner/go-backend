@@ -61,57 +61,10 @@ func NewRepo(ctx context.Context, db *gorm.DB) (*Repo, error) {
 	return &Repo{db: db}, nil
 }
 
-func (r *Repo) AddProducts(ctx context.Context, listID id.ID[favorite.List], models []favorite.Favorite) error {
-	entities := lo.Map(models, func(item favorite.Favorite, _ int) FavoriteProduct {
-		return productToEntity(listID, item)
-	})
-
-	if err := r.db.WithContext(ctx).Create(entities).Error; err != nil {
-		return fmt.Errorf("can't add products to list %s: %w", listID, err)
-	}
-
-	return nil
-}
-
 func (r *Repo) CreateList(ctx context.Context, model favorite.List) error {
 	if err := r.db.WithContext(ctx).Create(lo.ToPtr(modelToEntity(model))).Error; err != nil {
 		return fmt.Errorf("can't create new list %s: %w", model.ID, err)
 	}
-	return nil
-}
-
-func (r *Repo) DeleteProduct(ctx context.Context, productID id.ID[product.Product], listID id.ID[favorite.List]) error {
-	entity := &FavoriteProduct{ProductID: productID.String(), ListID: listID.String()} // nolint:exhaustruct
-	if err := r.db.WithContext(ctx).Where(entity).Delete(&entity).Error; err != nil {
-		return fmt.Errorf("can't delete favorite product %s from list %s: %w", productID, listID, err)
-	}
-
-	return nil
-}
-
-func (r *Repo) AddMember(ctx context.Context, listID id.ID[favorite.List], member favorite.Member) error {
-	if err := r.db.WithContext(ctx).Create(lo.ToPtr(memberToEntity(listID, member))).Error; err != nil {
-		return fmt.Errorf("can't add member %s to list %s: %w", member.UserID, listID, err)
-	}
-
-	return nil
-}
-
-func (r *Repo) DeleteMember(ctx context.Context, listID id.ID[favorite.List], userID id.ID[user.User]) error {
-	entity := &FavoriteMember{ListID: listID.String(), UserID: userID.String()} // nolint:exhaustruct
-	if err := r.db.WithContext(ctx).Where(entity).Delete(entity).Error; err != nil {
-		return fmt.Errorf("can't delete member %s from list %s: %w", userID, listID, err)
-	}
-
-	return nil
-}
-
-func (r *Repo) UpdateMember(ctx context.Context, listID id.ID[favorite.List], model favorite.Member) error {
-	query := &FavoriteMember{ListID: listID.String(), UserID: model.UserID.String()} // nolint:exhaustruct
-	if err := r.db.WithContext(ctx).Where(query).Updates(lo.ToPtr(memberToEntity(listID, model))).Error; err != nil {
-		return fmt.Errorf("can't update member %s in list %s: %w", model.UserID, listID, err)
-	}
-
 	return nil
 }
 
@@ -123,7 +76,7 @@ func (r *Repo) DeleteList(ctx context.Context, listID id.ID[favorite.List]) erro
 	return nil
 }
 
-func (r *Repo) GetListByID(ctx context.Context, listID id.ID[favorite.List]) (favorite.List, error) {
+func (r *Repo) GetByID(ctx context.Context, listID id.ID[favorite.List]) (favorite.List, error) {
 	entity := FavoriteList{ID: listID.String()} // nolint:exhaustruct
 	err := r.db.WithContext(ctx).
 		Preload("FavoriteMembers").
@@ -137,7 +90,7 @@ func (r *Repo) GetListByID(ctx context.Context, listID id.ID[favorite.List]) (fa
 	return entityToModel(entity), nil
 }
 
-func (r *Repo) GetListsByUserID(ctx context.Context, userID id.ID[user.User]) ([]favorite.List, error) {
+func (r *Repo) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]favorite.List, error) {
 	var entities []FavoriteList
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var listIDs []string

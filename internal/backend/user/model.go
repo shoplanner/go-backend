@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 
 	"go-backend/pkg/id"
@@ -28,3 +29,7 @@ type CreateOptions struct {
 }
 
 var ErrAuthorizationFailure = errors.New("authorization error")
+
+type Subscriber interface {
+	HandleUserCreated(context.Context, User) error
+}
