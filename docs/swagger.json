@@ -94,6 +94,121 @@
                 }
             }
         },
+        "/favorite/id/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorites"
+                ],
+                "summary": "get list of favorite products by id",
+                "operationId": "get-favorite-list-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of favorites list",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/favorite/id/{id}/product": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorites"
+                ],
+                "summary": "add new products to list of favorties",
+                "operationId": "add-favorite-products",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of favorites list",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "ids of new products",
+                        "name": "products",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ProductList"
+                        }
+                    }
+                ],
+                "responses": {}
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorites"
+                ],
+                "summary": "remove some products from favorite list",
+                "operationId": "remove-favorite-products",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of favorites list",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "ids of new products",
+                        "name": "products",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ProductList"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/favorite/user": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorites"
+                ],
+                "summary": "get all favorites lists, related to logged user",
+                "operationId": "get-user-favorites-lists",
+                "responses": {}
+            }
+        },
         "/product": {
             "post": {
                 "security": [
@@ -455,6 +570,17 @@
         }
     },
     "definitions": {
+        "api.ProductList": {
+            "type": "object",
+            "properties": {
+                "product_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "api.RefreshRequest": {
             "type": "object",
             "properties": {

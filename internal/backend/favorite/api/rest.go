@@ -71,7 +71,7 @@ func (h *Handler) GetFavoriteListByID(c *gin.Context) {
 // @Tags		Favorites
 //
 // @Param		id			query	string				true	"id of favorites list"
-// @Param		products	body	AddProductsRequest	true	"ids of new products"
+// @Param		products	body	ProductList	true	"ids of new products"
 // @Produce	json
 // @Router		/favorite/id/{id}/product [post]
 // @Security	ApiKeyAuth
@@ -121,7 +121,7 @@ func (h *Handler) AppendProductList(ctx *gin.Context) {
 // @Tags		Favorites
 //
 // @Param		id			query	string				true	"id of favorites list"
-// @Param		products	body	AddProductsRequest	true	"ids of new products"
+// @Param		products	body	ProductList	true	"ids of new products"
 // @Produce	json
 // @Router		/favorite/id/{id}/product [delete]
 // @Security	ApiKeyAuth

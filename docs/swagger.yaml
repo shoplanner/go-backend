@@ -1,5 +1,12 @@
 basePath: /api/v1
 definitions:
+  api.ProductList:
+    properties:
+      product_ids:
+        items:
+          type: string
+        type: array
+    type: object
   api.RefreshRequest:
     properties:
       refresh_token:
@@ -119,6 +126,79 @@ paths:
       summary: refresh access token
       tags:
       - Auth
+  /favorite/id/{id}:
+    get:
+      operationId: get-favorite-list-id
+      parameters:
+      - description: id of favorites list
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: get list of favorite products by id
+      tags:
+      - Favorites
+  /favorite/id/{id}/product:
+    delete:
+      operationId: remove-favorite-products
+      parameters:
+      - description: id of favorites list
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: ids of new products
+        in: body
+        name: products
+        required: true
+        schema:
+          $ref: '#/definitions/api.ProductList'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: remove some products from favorite list
+      tags:
+      - Favorites
+    post:
+      operationId: add-favorite-products
+      parameters:
+      - description: id of favorites list
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: ids of new products
+        in: body
+        name: products
+        required: true
+        schema:
+          $ref: '#/definitions/api.ProductList'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: add new products to list of favorties
+      tags:
+      - Favorites
+  /favorite/user:
+    get:
+      operationId: get-user-favorites-lists
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: get all favorites lists, related to logged user
+      tags:
+      - Favorites
   /product:
     post:
       consumes:
