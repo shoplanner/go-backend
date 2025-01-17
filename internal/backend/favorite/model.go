@@ -32,7 +32,6 @@ func ErrProductNotFound(listID id.ID[List], productID id.ID[product.Product]) er
 }
 
 type Favorite struct {
-	ListID    id.ID[List]               `json:"list_id"`
 	Product   product.Product           `json:"product"`
 	CreatedAt date.CreateDate[Favorite] `json:"created_at"`
 	UpdatedAt date.UpdateDate[Favorite] `json:"updated_at"`

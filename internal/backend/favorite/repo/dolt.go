@@ -31,22 +31,22 @@ type FavoriteList struct {
 }
 
 type FavoriteMember struct {
-	ID         string        `gorm:"primaryKey;size:36;notNull"`
-	UserID     string        `gorm:"size:36;references:ID;notNull"`
-	User       userRepo.User `gorm:"references:ID;notNull"`
-	ListID     string        `gorm:"size:36;notNull"`
-	CreatedAt  time.Time     `gorm:"notNull"`
-	UpdatedAt  time.Time     `gorm:"notNull"`
-	MemberType int32         `gorm:"notNull"`
+	ID             string        `gorm:"primaryKey;size:36;notNull"`
+	UserID         string        `gorm:"size:36;references:ID;notNull"`
+	User           userRepo.User `gorm:"references:ID"`
+	FavoriteListID string        `gorm:"size:36;references:ID;notNull"`
+	CreatedAt      time.Time     `gorm:"notNull"`
+	UpdatedAt      time.Time     `gorm:"notNull"`
+	MemberType     int32         `gorm:"notNull"`
 }
 
 type FavoriteProduct struct {
-	ID        string       `gorm:"primaryKey;size:36;notNull"`
-	ProductID string       `gorm:"size:36;notNull"`
-	Product   repo.Product `gorm:"references:ID"`
-	ListID    string       `gorm:"size:36;notNull"`
-	CreatedAt time.Time    `gorm:"notNull"`
-	UpdatedAt time.Time    `gorm:"notNull"`
+	ID             string       `gorm:"primaryKey;size:36;notNull"`
+	ProductID      string       `gorm:"size:36;notNull"`
+	FavoriteListID string       `gorm:"size:36;notNull"`
+	Product        repo.Product `gorm:"references:ID"`
+	CreatedAt      time.Time    `gorm:"notNull"`
+	UpdatedAt      time.Time    `gorm:"notNull"`
 }
 
 type Repo struct {
@@ -79,9 +79,11 @@ func (r *Repo) DeleteList(ctx context.Context, listID id.ID[favorite.List]) erro
 func (r *Repo) GetByID(ctx context.Context, listID id.ID[favorite.List]) (favorite.List, error) {
 	entity := FavoriteList{ID: listID.String()} // nolint:exhaustruct
 	err := r.db.WithContext(ctx).
-		Preload("FavoriteMembers").
-		Preload("FavoriteProducts").
-		Preload("Category").
+		Preload("Members").
+		Preload("Products").
+		Preload("Products.Product").
+		Preload("Products.Product.Category").
+		Preload("Products.Product.Forms").
 		First(&entity).Error
 	if err != nil {
 		return favorite.List{}, fmt.Errorf("can't select favorites list %s: %w", listID, err)
@@ -96,14 +98,21 @@ func (r *Repo) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]favo
 		var listIDs []string
 
 		err := tx.WithContext(ctx).
+			Model(new(FavoriteMember)).
 			Where(&FavoriteMember{UserID: userID.String()}). // nolint:exhaustruct
-			Pluck("list_id", &listIDs).
+			Pluck("favorite_list_id", &listIDs).
 			Error
 		if err != nil {
 			return fmt.Errorf("can't get list ids of user %s: %w", userID, err)
 		}
 
-		err = tx.WithContext(ctx).Where("id in ?", listIDs).Find(&entities).Error
+		err = tx.WithContext(ctx).Where("id in ?", listIDs).
+			Preload("Members").
+			Preload("Products").
+			Preload("Products.Product").
+			Preload("Products.Product.Category").
+			Preload("Products.Product.Forms").
+			Find(&entities).Error
 		if err != nil {
 			return fmt.Errorf("can't get lists of user %s: %w", userID, err)
 		}
@@ -165,9 +174,9 @@ func (r *Repo) GetAndUpdate(
 
 		entity := FavoriteList{ID: listID.String()} // nolint:exhaustruct
 		err = tx.WithContext(ctx).
-			Preload("FavoriteMembers").
-			Preload("FavoriteProducts").
-			Preload("Category").
+			Preload("Members").
+			Preload("Products").
+			Preload("Products.Product").
 			First(&entity).Error
 		if err != nil {
 			return fmt.Errorf("can't select favorites list %s: %w", listID, err)
@@ -179,10 +188,11 @@ func (r *Repo) GetAndUpdate(
 		}
 
 		entity = modelToEntity(model)
+		query := &FavoriteList{ID: listID.String()} //nolint:exhaustruct
 
 		err = tx.WithContext(ctx).
-			Model(new(FavoriteList)).
-			Association("FavoriteMembers").
+			Model(query).
+			Association("Members").
 			Unscoped().
 			Replace(entity.Members)
 		if err != nil {
@@ -190,8 +200,8 @@ func (r *Repo) GetAndUpdate(
 		}
 
 		err = tx.WithContext(ctx).
-			Model(new(FavoriteList)).
-			Association("FavoriteProducts").
+			Model(query).
+			Association("Products").
 			Unscoped().
 			Replace(entity.Products)
 		if err != nil {
@@ -199,7 +209,7 @@ func (r *Repo) GetAndUpdate(
 		}
 
 		err = tx.WithContext(ctx).
-			Model(new(FavoriteList)).
+			Model(query).
 			Updates(&entity).
 			Error
 		if err != nil {
@@ -256,22 +266,22 @@ func modelToEntity(model favorite.List) FavoriteList {
 
 func memberToEntity(listID id.ID[favorite.List], member favorite.Member) FavoriteMember {
 	return FavoriteMember{
-		ID:         "",
-		UserID:     member.UserID.String(),
-		User:       userRepo.User{ID: "", Login: "", Hash: "", Role: 0},
-		ListID:     listID.String(),
-		CreatedAt:  member.CreatedAt.Time,
-		UpdatedAt:  member.UpdatedAt.Time,
-		MemberType: int32(member.Type),
+		ID:             uuid.NewString(),
+		UserID:         member.UserID.String(),
+		User:           userRepo.User{ID: "", Login: "", Hash: "", Role: 0},
+		FavoriteListID: listID.String(),
+		CreatedAt:      member.CreatedAt.Time,
+		UpdatedAt:      member.UpdatedAt.Time,
+		MemberType:     int32(member.Type),
 	}
 }
 
 func productToEntity(listID id.ID[favorite.List], model favorite.Favorite) FavoriteProduct {
 	return FavoriteProduct{
-		ID:        "",
+		ID:        uuid.NewString(),
 		ProductID: model.Product.ID.String(),
 		Product: repo.Product{
-			ID:         "",
+			ID:         model.Product.ID.String(),
 			CreatedAt:  time.Time{},
 			UpdatedAt:  time.Time{},
 			Name:       "",
@@ -279,9 +289,9 @@ func productToEntity(listID id.ID[favorite.List], model favorite.Favorite) Favor
 			Category:   &repo.ProductCategory{ID: "", Name: ""},
 			Forms:      []repo.ProductForm{},
 		},
-		ListID:    listID.String(),
-		CreatedAt: model.CreatedAt.Time,
-		UpdatedAt: model.UpdatedAt.Time,
+		FavoriteListID: listID.String(),
+		CreatedAt:      model.CreatedAt.Time,
+		UpdatedAt:      model.UpdatedAt.Time,
 	}
 }
 
@@ -295,12 +305,16 @@ func entityToMember(entity FavoriteMember) favorite.Member {
 }
 
 func entityToProduct(entity FavoriteProduct) favorite.Favorite {
+	category := ""
+	if entity.Product.Category != nil {
+		category = entity.Product.Category.Name
+	}
+
 	return favorite.Favorite{
-		ListID: id.ID[favorite.List]{UUID: god.Believe(uuid.Parse(entity.ID))},
 		Product: product.Product{
 			Options: product.Options{
 				Name:     product.Name(entity.Product.Name),
-				Category: mo.EmptyableToOption(product.Category(entity.Product.Category.Name)),
+				Category: mo.EmptyableToOption(product.Category(category)),
 				Forms: lo.Map(entity.Product.Forms, func(item repo.ProductForm, _ int) product.Form {
 					return product.Form(item.Name)
 				}),
@@ -310,7 +324,6 @@ func entityToProduct(entity FavoriteProduct) favorite.Favorite {
 			UpdatedAt: date.UpdateDate[product.Product]{Time: entity.Product.UpdatedAt},
 		},
 		CreatedAt: date.CreateDate[favorite.Favorite]{Time: entity.CreatedAt},
-
 		UpdatedAt: date.UpdateDate[favorite.Favorite]{Time: entity.UpdatedAt},
 	}
 }

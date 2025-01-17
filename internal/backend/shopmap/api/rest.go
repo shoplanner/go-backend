@@ -186,24 +186,24 @@ type CategoryList struct {
 // @Produce	json
 // @Router		/shopmap/id/{id}/reorder [patch]
 // @Security ApiKeyAuth
-func (h *Handler) ReorderMap(ctx *gin.Context) {
+func (h *Handler) ReorderMap(c *gin.Context) {
 	var categories []product.Category
 
-	mapID, err := uuid.Parse(ctx.Query("id"))
+	mapID, err := uuid.Parse(c.Query("id"))
 	if err != nil {
-		ctx.String(http.StatusBadRequest, "id is not valid")
+		c.String(http.StatusBadRequest, "id is not valid")
 		return
 	}
 
-	if err = ctx.BindJSON(&categories); err != nil {
-		ctx.String(http.StatusBadRequest, "can't decode request")
+	if err = c.BindJSON(&categories); err != nil {
+		c.String(http.StatusBadRequest, "can't decode request")
 		return
 	}
-	shopMap, err := h.service.ReorderMap(ctx, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(ctx), categories)
+	shopMap, err := h.service.ReorderMap(c, id.ID[shopmap.ShopMap]{UUID: mapID}, api.GetUserID(c), categories)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, "error: %s", err.Error())
+		c.String(http.StatusBadRequest, "error: %s", err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, shopMap)
+	c.JSON(http.StatusOK, shopMap)
 }

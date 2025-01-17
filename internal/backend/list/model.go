@@ -1,13 +1,16 @@
 package list
 
 import (
-	"github.com/google/uuid"
+	"fmt"
+	"slices"
+
 	"github.com/samber/mo"
 
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -16,23 +19,38 @@ import (
 type StateStatus int
 
 // ENUM(planning, processing, archived).
-type ExecStatus int
+type ExecStatus int32
 
 type ProductState struct {
-	ProductID uuid.UUID       `json:"product_id"`
-	Product   product.Product `json:"product"`
-	Count     mo.Option[int]  `json:"count"`
-	FormIndex mo.Option[int]  `json:"form_index"`
-	Status    StateStatus     `json:"status"`
+	Product   product.Product               `json:"product"`
+	Count     mo.Option[int32]              `json:"count"`
+	FormIndex mo.Option[int32]              `json:"form_index"`
+	Status    StateStatus                   `json:"status"`
+	CreatedAt date.CreateDate[ProductState] `json:"created_at"`
+	UpdatedAt date.UpdateDate[ProductState] `json:"updated_at"`
 }
 
-// ENUM(owner,editor,executing)
-type MemberType int
+// ENUM(owner=1,editor,executing,viewer)
+type MemberType int32
+
+type MemberOptions struct {
+	UserID id.ID[user.User] `json:"user_id"`
+	Role   MemberType       `json:"type"`
+}
 
 type Member struct {
-	UserID   id.ID[user.User] `json:"user_id"`
-	UserName user.Login       `json:"username"`
-	Type     MemberType       `json:"type"`
+	MemberOptions
+
+	UserName  user.Login              `json:"username"`
+	CreatedAt date.CreateDate[Member] `json:"created_at"`
+	UpdatedAt date.UpdateDate[Member] `json:"updated_at"`
+}
+
+type Options struct {
+	States  []ProductState `json:"states"`
+	Members []Member       `json:"members"`
+	Status  ExecStatus     `json:"status"`
+	Title   string         `json:"title"`
 }
 
 type ProductList struct {
@@ -43,7 +61,18 @@ type ProductList struct {
 	CreatedAt date.CreateDate[ProductList] `json:"created_at"`
 }
 
-type Options struct {
-	States []ProductState `json:"states"`
-	Status ExecStatus     `json:"status"`
+func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) error {
+	idx := slices.IndexFunc(l.Members, func(m Member) bool {
+		return m.UserID == userID
+	})
+
+	if idx == -1 {
+		return fmt.Errorf("%w: user %s is not belongs to list %s", myerr.ErrForbidden, userID, l.ID)
+	}
+
+	if role > l.Members[idx].Role {
+		return fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
+	}
+
+	return nil
 }

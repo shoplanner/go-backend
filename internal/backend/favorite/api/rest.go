@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -70,30 +71,32 @@ func (h *Handler) GetFavoriteListByID(c *gin.Context) {
 // @ID			add-favorite-products
 // @Tags		Favorites
 //
-// @Param		id			query	string				true	"id of favorites list"
+// @Param		id			path	string				true	"id of favorites list"
 // @Param		products	body	ProductList	true	"ids of new products"
 // @Produce	json
 // @Router		/favorite/id/{id}/product [post]
 // @Security	ApiKeyAuth
 func (h *Handler) AppendProductList(ctx *gin.Context) {
-	var rawProductList []string
+	var req ProductList
 
-	if err := ctx.BindJSON(&rawProductList); err != nil {
+	if err := ctx.BindJSON(&req); err != nil {
 		ctx.String(http.StatusBadRequest, "can't decode request")
 		return
 	}
 
 	rawListID := ctx.Param("id")
+	fmt.Println(rawListID)
+
 	listUUID, err := uuid.Parse(rawListID)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "list id must be valid UUID")
 		return
 	}
 
-	idList := make([]id.ID[product.Product], 0, len(rawProductList))
-	for _, rawID := range rawProductList {
-		parsedUUID, err := uuid.Parse(rawID)
-		if err != nil {
+	idList := make([]id.ID[product.Product], 0, len(req.ProductIDs))
+	for _, rawID := range req.ProductIDs {
+		parsedUUID, parseError := uuid.Parse(rawID)
+		if parseError != nil {
 			ctx.String(http.StatusBadRequest, "id must be valid UUID")
 			return
 		}
@@ -120,15 +123,15 @@ func (h *Handler) AppendProductList(ctx *gin.Context) {
 // @ID			remove-favorite-products
 // @Tags		Favorites
 //
-// @Param		id			query	string				true	"id of favorites list"
+// @Param		id			path	string				true	"id of favorites list"
 // @Param		products	body	ProductList	true	"ids of new products"
 // @Produce	json
 // @Router		/favorite/id/{id}/product [delete]
 // @Security	ApiKeyAuth
 func (h *Handler) DeleteProductList(ctx *gin.Context) {
-	var rawProductList []string
+	var req ProductList
 
-	if err := ctx.BindJSON(&rawProductList); err != nil {
+	if err := ctx.BindJSON(&req); err != nil {
 		ctx.String(http.StatusBadRequest, "can't decode request")
 		return
 	}
@@ -140,10 +143,10 @@ func (h *Handler) DeleteProductList(ctx *gin.Context) {
 		return
 	}
 
-	idList := make([]id.ID[product.Product], 0, len(rawProductList))
-	for _, rawID := range rawProductList {
-		parsedUUID, err := uuid.Parse(rawID)
-		if err != nil {
+	idList := make([]id.ID[product.Product], 0, len(req.ProductIDs))
+	for _, rawID := range req.ProductIDs {
+		parsedUUID, parseError := uuid.Parse(rawID)
+		if parseError != nil {
 			ctx.String(http.StatusBadRequest, "id must be valid UUID")
 			return
 		}
@@ -158,8 +161,7 @@ func (h *Handler) DeleteProductList(ctx *gin.Context) {
 		idList,
 	)
 	if err != nil {
-		h.log.Err(err).Msg("deleting products")
-		ctx.String(http.StatusInternalServerError, "internal error")
+		rerr.HandleError(ctx, err)
 		return
 	}
 
@@ -173,12 +175,16 @@ func (h *Handler) DeleteProductList(ctx *gin.Context) {
 // @Produce	json
 // @Router		/favorite/user [get]
 // @Security	ApiKeyAuth
-func (h Handler) GetUserLists(c *gin.Context) {
+func (h *Handler) GetUserLists(c *gin.Context) {
 	models, err := h.service.GetListsByUserID(c.Copy(), api.GetUserID(c))
 	if err != nil {
+		h.log.Err(err).Stringer("userID", api.GetUserID(c)).Msg("getting user favorites lists")
 		rerr.HandleError(c, err)
 		return
 	}
+
+	fmt.Println()
+	fmt.Println(models)
 
 	c.JSON(http.StatusOK, models)
 }

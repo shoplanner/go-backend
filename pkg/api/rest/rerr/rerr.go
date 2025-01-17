@@ -21,12 +21,19 @@ type GeneralResponse struct {
 func HandleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, myerr.ErrInvalidArgument):
-		c.JSON(http.StatusBadRequest, err)
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	case errors.Is(err, myerr.ErrAlreadyExists):
-		c.JSON(http.StatusGone, err.Error())
+		c.String(http.StatusGone, err.Error())
+		return
 	case errors.Is(err, myerr.ErrForbidden):
+		c.String(http.StatusForbidden, err.Error())
+		return
 	case errors.Is(err, myerr.ErrNotFound):
+		c.String(http.StatusNotFound, err.Error())
+		return
 	default:
+		c.String(http.StatusInternalServerError, "internal error")
+		return
 	}
 }

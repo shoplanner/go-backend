@@ -149,7 +149,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of favorites list",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {
@@ -183,7 +183,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of favorites list",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {

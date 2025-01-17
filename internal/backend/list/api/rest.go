@@ -1,15 +1,21 @@
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
 
-type Handler struct{}
+	"go-backend/internal/backend/list/service"
+)
 
-func RegisterREST(r *gin.RouterGroup) {
+type Handler struct {
+	service *service.Service
+}
+
+func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 	group := r.Group("/list")
 
-	h := Handler{}
+	h := Handler{service: service}
 
-	r.POST("", h.Create)
+	r.POST("", h.CreateList)
 	group.GET("/user", h.GetByUserID)
 
 	idGroup := group.Group("/id")
@@ -21,19 +27,24 @@ func RegisterREST(r *gin.RouterGroup) {
 	idGroup.PUT("/:id", h.Update)
 }
 
-func (h *Handler) Create(ctx *gin.Context) {
+func (h *Handler) CreateList(ctx *gin.Context) {
+	h.service.Create()
 }
 
 func (h *Handler) GetByListID(ctx *gin.Context) {
+	h.service.GetByID()
 }
 
 func (h *Handler) GetByUserID(ctx *gin.Context) {
+	h.service.GetByUserID()
 }
 
 func (h *Handler) Delete(ctx *gin.Context) {
+	h.service.DeleteList()
 }
 
 func (h *Handler) Update(ctx *gin.Context) {
+	h.service.Update()
 }
 
 func (h *Handler) AddViewerList(ctx *gin.Context) {

@@ -1,7 +1,8 @@
-package list
+package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -12,11 +13,18 @@ import (
 )
 
 type repo interface {
-	ID(context.Context, uuid.UUID) (list.ProductList, error)
-	Create(context.Context, list.ProductList) error
-	UserID(context.Context, uuid.UUID) ([]list.ProductList, error)
-	Update(context.Context, list.ProductList) (list.ProductList, error)
-	Delete(context.Context, uuid.UUID) error
+	CreateList(context.Context, list.ProductList) error
+	GetByListID(context.Context, id.ID[list.ProductList]) (list.ProductList, error)
+	GetListMetaByUserID(context.Context, id.ID[user.User]) ([]list.ProductList, error)
+	GetAndUpdate(
+		context.Context,
+		id.ID[list.ProductList],
+		func(list.ProductList) (list.ProductList, error),
+	) (
+		list.ProductList,
+		error,
+	)
+	GetAndDeleteList(context.Context, id.ID[list.ProductList], func(list.ProductList) error) error
 }
 
 type Service struct {
@@ -27,29 +35,70 @@ func NewService(repo repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) Create(ctx context.Context, name string, creatorID id.ID[user.User]) (list.ProductList, error) {
-	list := list.ProductList{
+func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options list.Options) (list.ProductList, error) {
+	newList := list.ProductList{
 		Options: list.Options{
 			States: []list.ProductState{},
+			Members: []list.Member{
+				{
+					UserID:    ownerID,
+					UserName:  "",
+					Role:      list.MemberTypeOwner,
+					CreatedAt: date.NewCreateDate[list.Member](),
+					UpdatedAt: date.NewUpdateDate[list.Member](),
+				},
+			},
 			Status: list.ExecStatusPlanning,
+			Title:  options.Title,
 		},
 		ID:        id.NewID[list.ProductList](),
-		OwnerID:   creatorID,
 		CreatedAt: date.NewCreateDate[list.ProductList](),
 		UpdatedAt: date.NewUpdateDate[list.ProductList](),
 	}
 
-	return list, s.repo.Create(ctx, list)
+	if err := s.validate(newList); err != nil {
+		return list.ProductList{}, err
+	}
+
+	if err := s.repo.CreateList(ctx, newList); err != nil {
+		return list.ProductList{}, fmt.Errorf("can't create new list: %w", err)
+	}
+
+	return newList, nil
 }
 
-func (s *Service) Update(ctx context.Context, model list.Options) (list.ProductList, error) {
-	return s.repo.Update(ctx, list.ProductList{Options: model})
+func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], options list.Options) (list.ProductList, error) {
+	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		oldList.Options = options
+
+		if err := s.validate(oldList); err != nil {
+			return list.ProductList{}, err
+		}
+
+		return oldList, nil
+	})
+	if err != nil {
+		return model, fmt.Errorf("can't update list %s: %w", err)
+	}
+
+	return model, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Delete(ctx, id)
+func (s *Service) DeleteList(ctx context.Context, listID id.ID[list.ProductList]) error {
 }
 
-func (s *Service) ID(ctx context.Context, id uuid.UUID) (list.ProductList, error) {
-	return s.repo.ID(ctx, id)
+func (s *Service) GetByID(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User]) (list.ProductList, error) {
+	model, err := s.repo.GetByListID(ctx, listID)
+	if err != nil {
+		return model, fmt.Errorf("can't get list %s from storage: %w", listID, err)
+	}
 }
+
+func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]list.ProductList, error) {
+}
+
+func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], []list.MemberOptions) (list.ProductList, error) {
+
+}
+
+func (s *Service) Append

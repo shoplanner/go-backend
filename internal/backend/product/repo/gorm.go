@@ -95,11 +95,11 @@ func (r *GormRepo) GetAndUpdate(
 			return wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
 		}
 
-		model, err = updateFunc(entityToModel(entity))
+		model, err = updateFunc(EntityToModel(entity))
 		if err != nil {
 			return err
 		}
-		entity = modelToEntity(model)
+		entity = ModelToEntity(model)
 
 		err = tx.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Model(&Product{ID: entity.ID}).
 			Association("Forms").Unscoped().Replace(entity.Forms)
@@ -128,7 +128,7 @@ func (r *GormRepo) GetByID(ctx context.Context, productID id.ID[product.Product]
 		return product.Product{}, wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
 	}
 
-	return entityToModel(entity), nil
+	return EntityToModel(entity), nil
 }
 
 func (r *GormRepo) GetByListID(ctx context.Context, idList []id.ID[product.Product]) ([]product.Product, error) {
@@ -141,11 +141,11 @@ func (r *GormRepo) GetByListID(ctx context.Context, idList []id.ID[product.Produ
 		return nil, wrapErr(fmt.Errorf("can't select products %v: %w", idList, err))
 	}
 
-	return lo.Map(entities, func(item Product, _ int) product.Product { return entityToModel(item) }), nil
+	return lo.Map(entities, func(item Product, _ int) product.Product { return EntityToModel(item) }), nil
 }
 
 func (r *GormRepo) Create(ctx context.Context, model product.Product) error {
-	entity := modelToEntity(model)
+	entity := ModelToEntity(model)
 	log.Info().Any("model", model).Any("entity", entity).Msg("inserting new product")
 	err := r.db.WithContext(ctx).Create(&entity).Error
 	if err != nil {
@@ -164,7 +164,7 @@ func (r *GormRepo) Delete(ctx context.Context, productID id.ID[product.Product])
 	return nil
 }
 
-func entityToModel(entity Product) product.Product {
+func EntityToModel(entity Product) product.Product {
 	category := mo.None[product.Category]()
 	if entity.Category != nil {
 		category = mo.EmptyableToOption(product.Category(entity.Category.Name))
@@ -184,7 +184,7 @@ func entityToModel(entity Product) product.Product {
 	}
 }
 
-func modelToEntity(model product.Product) Product {
+func ModelToEntity(model product.Product) Product {
 	var category *ProductCategory
 	if model.Category.IsPresent() {
 		category = &ProductCategory{

@@ -148,7 +148,7 @@ paths:
       operationId: remove-favorite-products
       parameters:
       - description: id of favorites list
-        in: query
+        in: path
         name: id
         required: true
         type: string
@@ -170,7 +170,7 @@ paths:
       operationId: add-favorite-products
       parameters:
       - description: id of favorites list
-        in: query
+        in: path
         name: id
         required: true
         type: string

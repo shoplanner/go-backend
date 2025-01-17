@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/samber/mo"
@@ -36,7 +37,7 @@ type Service struct {
 func NewService(repo favoritesRepo, users users) *Service {
 	s := &Service{repo: repo}
 	users.RegisterSubscriber(s)
-	return nil
+	return s
 }
 
 func (s *Service) AddProducts(
@@ -54,7 +55,6 @@ func (s *Service) AddProducts(
 		}
 		for _, productID := range productIDs {
 			list.Products = append(list.Products, favorite.Favorite{
-				ListID: listID,
 				Product: product.Product{
 					Options:   product.Options{Name: "", Category: mo.None[product.Category](), Forms: []product.Form{}},
 					ID:        productID,
@@ -83,31 +83,29 @@ func (s *Service) DeleteProducts(ctx context.Context,
 	error,
 ) {
 	model, err := s.repoGetAndUpdate(ctx, listID, func(list favorite.List) (favorite.List, error) {
-		type idx struct {
-			idx int
-			p   favorite.Favorite
-		}
-
 		if err := list.AllowedToEdit(userID); err != nil {
 			return favorite.List{}, fmt.Errorf("user %s is not allowed to edit list %s: %w", userID, listID, err)
 		}
 
-		productExists := make(map[string]idx, len(list.Products))
-		for i, p := range list.Products {
-			productExists[p.Product.ID.String()] = idx{idx: i, p: p}
+		productExists := make(map[string]favorite.Favorite, len(list.Products))
+		toDelete := make(map[string]struct{}, len(productIDs))
+		for _, p := range list.Products {
+			productExists[p.Product.ID.String()] = p
+		}
+		for _, productID := range productIDs {
+			toDelete[productID.String()] = struct{}{}
 		}
 
 		for _, productID := range productIDs {
 			if _, exists := productExists[productID.String()]; !exists {
 				return list, favorite.ErrProductNotFound(listID, productID)
 			}
-			delete(productExists, productID.String())
 		}
 
-		list.Products = make([]favorite.Favorite, len(productExists))
-		for _, item := range productExists {
-			list.Products[item.idx] = item.p
-		}
+		list.Products = slices.DeleteFunc(list.Products, func(product favorite.Favorite) bool {
+			_, kek := toDelete[product.Product.ID.String()]
+			return kek
+		})
 
 		return list, nil
 	})
@@ -151,7 +149,10 @@ func (s *Service) repoGetAndUpdate(
 	ctx context.Context,
 	listID id.ID[favorite.List],
 	updateFunc func(favorite.List) (favorite.List, error),
-) (favorite.List, error) {
+) (
+	favorite.List,
+	error,
+) {
 	model, err := s.repo.GetAndUpdate(ctx, listID, updateFunc)
 	if err != nil {
 		return model, fmt.Errorf("can't update repo: %w", err)
