@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"go-backend/internal/backend/list"
+	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
@@ -86,30 +89,78 @@ func (s *Service) DeleteList(ctx context.Context, userID id.ID[user.User], listI
 	err := s.repo.GetAndDeleteList(ctx, listID, func(oldList list.ProductList) error {
 		return oldList.CheckRole(userID, list.MemberTypeEditor)
 	})
+	if err != nil {
+		return fmt.Errorf("can't delete product list %s: %w", listID, err)
+	}
+
+	return nil
 }
 
 func (s *Service) GetByID(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User]) (list.ProductList, error) {
 	model, err := s.repo.GetByListID(ctx, listID)
 	if err != nil {
-		return model, fmt.Errorf("can't get list %s from storage: %w", listID, err)
+		return list.ProductList{}, fmt.Errorf("can't get list %s from storage: %w", listID, err)
 	}
+
+	if err := model.CheckRole(userID, list.MemberTypeViewer); err != nil {
+		return list.ProductList{}, err
+	}
+
+	return model, nil
 }
 
 func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]list.ProductList, error) {
+	models, err := s.repo.GetListMetaByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("can't get disk meta related to user %s: %w", userID, err)
+	}
+
+	return models, nil
 }
 
-func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], members []list.MemberOptions) (list.ProductList, error) {
+func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], members []list.MemberOptions) (list.ProductList, error) {
+	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, err
+		}
+
+		oldList.Members = append(oldList.Members, lo.Map(members, func(item list.MemberOptions, _ int) list.Member {
+			return list.Member{
+				MemberOptions: item,
+				CreatedAt:     date.NewCreateDate[list.Member](),
+				UpdatedAt:     date.NewUpdateDate[list.Member](),
+			}
+		})...)
+
+		if err := s.validate(oldList); err != nil {
+			return oldList, err
+		}
+
+		return oldList, nil
+	})
+	if err != nil {
+		return list.ProductList{}, fmt.Errorf("can't update list %s: %w", listID, err)
+	}
+
+	return model, nil
 }
 
 func (s *Service) AppendProducts(
 	ctx context.Context,
 	listID id.ID[list.ProductList],
 	userID id.ID[user.User],
-	products []id.ID[list.ProductList],
+	products []id.ID[product.Product],
 ) (
 	list.ProductList,
 	error,
 ) {
+	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		if err := oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
+			return oldList, err
+		}
+
+		oldList.States = append(oldList.States, lo.Map(products, func(item id.ID[product.Product], index int) {}))
+	})
 }
 
 func (s *Service) DeleteProducts(
