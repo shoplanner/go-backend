@@ -13,7 +13,7 @@ import (
 
 const (
 	// ExecStatusPlanning is a ExecStatus of type Planning.
-	ExecStatusPlanning ExecStatus = iota
+	ExecStatusPlanning ExecStatus = iota + 1
 	// ExecStatusProcessing is a ExecStatus of type Processing.
 	ExecStatusProcessing
 	// ExecStatusArchived is a ExecStatus of type Archived.
@@ -99,21 +99,27 @@ func (x *ExecStatus) UnmarshalText(text []byte) error {
 
 const (
 	// MemberTypeOwner is a MemberType of type Owner.
-	MemberTypeOwner MemberType = iota
+	MemberTypeOwner MemberType = iota + 1
+	// MemberTypeAdmin is a MemberType of type Admin.
+	MemberTypeAdmin
 	// MemberTypeEditor is a MemberType of type Editor.
 	MemberTypeEditor
 	// MemberTypeExecuting is a MemberType of type Executing.
 	MemberTypeExecuting
+	// MemberTypeViewer is a MemberType of type Viewer.
+	MemberTypeViewer
 )
 
 var ErrInvalidMemberType = fmt.Errorf("not a valid MemberType, try [%s]", strings.Join(_MemberTypeNames, ", "))
 
-const _MemberTypeName = "ownereditorexecuting"
+const _MemberTypeName = "owneradmineditorexecutingviewer"
 
 var _MemberTypeNames = []string{
 	_MemberTypeName[0:5],
-	_MemberTypeName[5:11],
-	_MemberTypeName[11:20],
+	_MemberTypeName[5:10],
+	_MemberTypeName[10:16],
+	_MemberTypeName[16:25],
+	_MemberTypeName[25:31],
 }
 
 // MemberTypeNames returns a list of possible string values of MemberType.
@@ -127,15 +133,19 @@ func MemberTypeNames() []string {
 func MemberTypeValues() []MemberType {
 	return []MemberType{
 		MemberTypeOwner,
+		MemberTypeAdmin,
 		MemberTypeEditor,
 		MemberTypeExecuting,
+		MemberTypeViewer,
 	}
 }
 
 var _MemberTypeMap = map[MemberType]string{
 	MemberTypeOwner:     _MemberTypeName[0:5],
-	MemberTypeEditor:    _MemberTypeName[5:11],
-	MemberTypeExecuting: _MemberTypeName[11:20],
+	MemberTypeAdmin:     _MemberTypeName[5:10],
+	MemberTypeEditor:    _MemberTypeName[10:16],
+	MemberTypeExecuting: _MemberTypeName[16:25],
+	MemberTypeViewer:    _MemberTypeName[25:31],
 }
 
 // String implements the Stringer interface.
@@ -155,8 +165,10 @@ func (x MemberType) IsValid() bool {
 
 var _MemberTypeValue = map[string]MemberType{
 	_MemberTypeName[0:5]:   MemberTypeOwner,
-	_MemberTypeName[5:11]:  MemberTypeEditor,
-	_MemberTypeName[11:20]: MemberTypeExecuting,
+	_MemberTypeName[5:10]:  MemberTypeAdmin,
+	_MemberTypeName[10:16]: MemberTypeEditor,
+	_MemberTypeName[16:25]: MemberTypeExecuting,
+	_MemberTypeName[25:31]: MemberTypeViewer,
 }
 
 // ParseMemberType attempts to convert a string to a MemberType.
@@ -185,7 +197,7 @@ func (x *MemberType) UnmarshalText(text []byte) error {
 
 const (
 	// StateStatusWaiting is a StateStatus of type Waiting.
-	StateStatusWaiting StateStatus = iota
+	StateStatusWaiting StateStatus = iota + 1
 	// StateStatusMissing is a StateStatus of type Missing.
 	StateStatusMissing
 	// StateStatusTaken is a StateStatus of type Taken.

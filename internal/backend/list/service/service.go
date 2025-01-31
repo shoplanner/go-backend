@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
@@ -84,7 +82,10 @@ func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], op
 	return model, nil
 }
 
-func (s *Service) DeleteList(ctx context.Context, listID id.ID[list.ProductList]) error {
+func (s *Service) DeleteList(ctx context.Context, userID id.ID[user.User], listID id.ID[list.ProductList]) error {
+	err := s.repo.GetAndDeleteList(ctx, listID, func(oldList list.ProductList) error {
+		return oldList.CheckRole(userID, list.MemberTypeEditor)
+	})
 }
 
 func (s *Service) GetByID(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User]) (list.ProductList, error) {
@@ -97,8 +98,27 @@ func (s *Service) GetByID(ctx context.Context, listID id.ID[list.ProductList], u
 func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]list.ProductList, error) {
 }
 
-func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], []list.MemberOptions) (list.ProductList, error) {
-
+func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], members []list.MemberOptions) (list.ProductList, error) {
 }
 
-func (s *Service) Append
+func (s *Service) AppendProducts(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	products []id.ID[list.ProductList],
+) (
+	list.ProductList,
+	error,
+) {
+}
+
+func (s *Service) DeleteProducts(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	products []id.ID[list.ProductList],
+) (
+	list.ProductList,
+	error,
+) {
+}

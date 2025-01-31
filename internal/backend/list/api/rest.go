@@ -50,8 +50,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 func (h *Handler) AddViewerList(ctx *gin.Context) {
 }
 
-func (h *Handler) AddProduct(ctx *gin.Context) {
+func (h *Handler) AddProducts(ctx *gin.Context) {
+	h.service.AppendProducts()
 }
 
-func (h *Handler) DeleteProduct(ctx *gin.Context) {
+func (h *Handler) DeleteProducts(ctx *gin.Context) {
+	h.service.DeleteList
 }

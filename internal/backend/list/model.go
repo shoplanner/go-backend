@@ -15,10 +15,10 @@ import (
 
 //go:generate go-enum --marshal --names --values
 
-// ENUM(waiting, missing, taken, replaced).
+// ENUM(waiting=1, missing, taken, replaced).
 type StateStatus int
 
-// ENUM(planning, processing, archived).
+// ENUM(planning=1, processing, archived).
 type ExecStatus int32
 
 type ProductState struct {
@@ -30,7 +30,7 @@ type ProductState struct {
 	UpdatedAt date.UpdateDate[ProductState] `json:"updated_at"`
 }
 
-// ENUM(owner=1,editor,executing,viewer)
+// ENUM(owner=1,admin,editor,executing,viewer)
 type MemberType int32
 
 type MemberOptions struct {
