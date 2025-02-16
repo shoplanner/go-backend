@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
+	"github.com/samber/mo"
 
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/product"
@@ -42,9 +43,11 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options 
 			States: []list.ProductState{},
 			Members: []list.Member{
 				{
-					UserID:    ownerID,
+					MemberOptions: list.MemberOptions{
+						UserID: ownerID,
+						Role:   list.MemberTypeOwner,
+					},
 					UserName:  "",
-					Role:      list.MemberTypeOwner,
 					CreatedAt: date.NewCreateDate[list.Member](),
 					UpdatedAt: date.NewUpdateDate[list.Member](),
 				},
@@ -159,8 +162,23 @@ func (s *Service) AppendProducts(
 			return oldList, err
 		}
 
-		oldList.States = append(oldList.States, lo.Map(products, func(item id.ID[product.Product], index int) {}))
+		oldList.States = append(oldList.States, lo.Map(products, func(item id.ID[product.Product], index int) list.ProductState {
+			return list.ProductState{
+				Product:   product.Product{},
+				Count:     mo.PointerToOption(),
+				FormIndex: mo.Option{},
+				Status:    0,
+				CreatedAt: date.CreateDate{},
+				UpdatedAt: date.UpdateDate{},
+			}
+		})...)
+		return oldList, nil
 	})
+	if err != nil {
+		return list.ProductList{}, fmt.Errorf("can't append products: %w", err)
+	}
+
+	return model, nil
 }
 
 func (s *Service) DeleteProducts(

@@ -1,8 +1,6 @@
 module go-backend
 
-go 1.23.0
-
-toolchain go1.23.5
+go 1.24.0
 
 require (
 	entgo.io/ent v0.14.1
@@ -24,6 +22,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/doug-martin/goqu v5.0.0+incompatible // indirect
 	github.com/go-jet/jet/v2 v2.12.0 // indirect
@@ -31,6 +30,11 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
+	github.com/urfave/cli/v2 v2.3.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
 require (
@@ -74,3 +78,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.5.7
 )
+
+tool github.com/swaggo/swag/cmd/swag
+
+tool github.com/abice/go-enum
+
+tool github.com/sqlc-dev/sqlc/cmd/sqlc
