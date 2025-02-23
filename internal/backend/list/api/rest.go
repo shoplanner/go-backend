@@ -21,8 +21,8 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 	idGroup := group.Group("/id")
 	idGroup.GET("/:id", h.GetByListID)
 	idGroup.DELETE("/:id", h.Delete)
-	idGroup.POST("/:id/product", h.AddProduct)
-	idGroup.DELETE("/:id/product", h.DeleteProduct)
+	idGroup.POST("/:id/product", h.AddProducts)
+	idGroup.DELETE("/:id/product", h.DeleteProducts)
 	idGroup.POST("/:id/member", h.AddViewerList)
 	idGroup.PUT("/:id", h.Update)
 }
