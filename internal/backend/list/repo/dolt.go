@@ -3,6 +3,12 @@ package repo
 import (
 	"context"
 	"fmt"
+	"go-backend/internal/backend/list"
+	"go-backend/internal/backend/user"
+	"go-backend/internal/backend/user/repo"
+	"go-backend/pkg/date"
+	"go-backend/pkg/god"
+	"go-backend/pkg/id"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,13 +16,7 @@ import (
 	"github.com/samber/mo"
 	"gorm.io/gorm"
 
-	"go-backend/internal/backend/list"
 	productRepo "go-backend/internal/backend/product/repo"
-	"go-backend/internal/backend/user"
-	"go-backend/internal/backend/user/repo"
-	"go-backend/pkg/date"
-	"go-backend/pkg/god"
-	"go-backend/pkg/id"
 )
 
 type ProductListState struct {
@@ -191,9 +191,11 @@ func entityToModel(entity ProductList) list.ProductList {
 
 func memberToModel(entity ProductListMember) list.Member {
 	return list.Member{
-		UserID:    id.ID[user.User]{UUID: god.Believe(uuid.Parse(entity.ID))},
+		MemberOptions: list.MemberOptions{
+			UserID: id.ID[user.User]{UUID: god.Believe(uuid.Parse(entity.ID))},
+			Role:   list.MemberType(entity.MemberType),
+		},
 		UserName:  user.Login(entity.User.Login),
-		Role:      list.MemberType(entity.MemberType),
 		CreatedAt: date.CreateDate[list.Member]{Time: entity.CreatedAt},
 		UpdatedAt: date.UpdateDate[list.Member]{Time: entity.UpdatedAt},
 	}
@@ -201,10 +203,12 @@ func memberToModel(entity ProductListMember) list.Member {
 
 func stateToModel(entity ProductListState) list.ProductState {
 	return list.ProductState{
+		ProductStateOptions: list.ProductStateOptions{
+			Count:     mo.PointerToOption(entity.Count),
+			FormIndex: mo.PointerToOption(entity.FormIdx),
+			Status:    list.StateStatus(entity.Status),
+		},
 		Product:   productRepo.EntityToModel(entity.Product),
-		Count:     mo.PointerToOption(entity.Count),
-		FormIndex: mo.PointerToOption(entity.FormIdx),
-		Status:    list.StateStatus(entity.Status),
 		CreatedAt: date.CreateDate[list.ProductState]{Time: entity.CreatedAt},
 		UpdatedAt: date.UpdateDate[list.ProductState]{Time: entity.UpdatedAt},
 	}

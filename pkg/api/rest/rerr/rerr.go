@@ -2,11 +2,13 @@ package rerr
 
 import (
 	"errors"
+	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-
-	"go-backend/pkg/myerr"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 func ResponseMiddleware(c *gin.Context) {
@@ -18,7 +20,15 @@ type GeneralResponse struct {
 	Error error `json:"error,omitempty"`
 }
 
-func HandleError(c *gin.Context, err error) {
+type BaseHandler struct {
+	log zerolog.Logger
+}
+
+func NewBaseHandler(log zerolog.Logger) BaseHandler {
+	return BaseHandler{log: log}
+}
+
+func (h BaseHandler) HandleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, myerr.ErrInvalidArgument):
 		c.String(http.StatusBadRequest, err.Error())
@@ -36,4 +46,38 @@ func HandleError(c *gin.Context, err error) {
 		c.String(http.StatusInternalServerError, "internal error")
 		return
 	}
+}
+
+func PathID[T any](ctx *gin.Context) (id.ID[T], bool) {
+	rawID := ctx.Param("id")
+
+	uuidID, err := uuid.Parse(rawID)
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "id must be valid UUID")
+		return id.ID[T]{}, false
+	}
+
+	return id.ID[T]{UUID: uuidID}, true
+}
+
+func QueryID[T any](ctx *gin.Context, name string) (id.ID[T], bool) {
+	rawID := ctx.Param(name)
+
+	uuidID, err := uuid.Parse(rawID)
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "%s must be valid UUID", name)
+		return id.ID[T]{}, false
+	}
+
+	return id.ID[T]{UUID: uuidID}, true
+}
+
+func (h BaseHandler) Decode(c *gin.Context, obj any) bool {
+	if err := c.BindJSON(obj); err != nil {
+		h.log.Info().Ctx(c).Err(err).Msg("decoding request failed")
+		c.String(http.StatusBadRequest, "can't decode request")
+		return false
+	}
+
+	return true
 }

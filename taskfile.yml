@@ -7,7 +7,7 @@ env:
 tasks:
   generate:
     cmds:
-      - swag init -g cmd/backend/main.go
+      - swag init -g cmd/backend/main.go --parseDependency --parseInternal
       - go generate ./...
   build:
     deps: [generate]

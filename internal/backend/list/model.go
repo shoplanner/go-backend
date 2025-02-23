@@ -2,15 +2,14 @@ package list
 
 import (
 	"fmt"
-	"slices"
-
-	"github.com/samber/mo"
-
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
+	"slices"
+
+	"github.com/samber/mo"
 )
 
 //go:generate go-enum --marshal --names --values
@@ -51,7 +50,7 @@ type Member struct {
 	UpdatedAt date.UpdateDate[Member] `json:"updated_at"`
 }
 
-type Options struct {
+type ListOptions struct {
 	States  []ProductState `json:"states"`
 	Members []Member       `json:"members"`
 	Status  ExecStatus     `json:"status"`
@@ -59,7 +58,7 @@ type Options struct {
 }
 
 type ProductList struct {
-	Options
+	ListOptions
 
 	ID        id.ID[ProductList]           `json:"id"`
 	UpdatedAt date.UpdateDate[ProductList] `json:"updated_at"`

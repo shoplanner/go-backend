@@ -3,16 +3,17 @@ package service
 import (
 	"context"
 	"fmt"
-
-	"github.com/samber/lo"
-	"github.com/samber/mo"
-
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
+	"maps"
+	"slices"
+
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 )
 
 type repo interface {
@@ -72,18 +73,24 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options 
 	return newList, nil
 }
 
-func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], options list.Options) (list.ProductList, error) {
+func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], options list.Options) (list.ProductList, error) {
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		oldList.Options = options
+		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, err
+		}
 
-		if err := s.validate(oldList); err != nil {
+		newList := oldList.Clone()
+
+		newList.Options = options
+
+		if err := s.validate(newList); err != nil {
 			return list.ProductList{}, err
 		}
 
-		return oldList, nil
+		return newList, nil
 	})
 	if err != nil {
-		return model, fmt.Errorf("can't update list %s: %w", err)
+		return model, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
 	return model, nil
@@ -144,6 +151,42 @@ func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductLi
 	})
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't update list %s: %w", listID, err)
+	}
+
+	return model, nil
+}
+
+func (s *Service) DeleteMembers(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], toDelete []id.ID[user.User]) (list.ProductList, error) {
+	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, err
+		}
+
+		newList := oldList.Clone()
+
+		currentMembers := lo.SliceToMap(
+			newList.Members,
+			func(item list.Member) (id.ID[user.User], list.Member) { return item.UserID, item },
+		)
+
+		for _, userID := range toDelete {
+			if _, found := currentMembers[userID]; !found {
+				return oldList, fmt.Errorf("%w: member %s", myerr.ErrNotFound, userID)
+			}
+
+			delete(currentMembers, userID)
+		}
+
+		newList.Members = slices.Collect(maps.Values(currentMembers))
+
+		if err := s.validate(newList); err != nil {
+			return oldList, err
+		}
+
+		return newList, nil
+	})
+	if err != nil {
+		return model, fmt.Errorf("can't delete members from list %s: %w", listID, err)
 	}
 
 	return model, nil
@@ -225,6 +268,8 @@ func (s *Service) DeleteProducts(
 
 			delete(currentStates, productID)
 		}
+
+		newList.States = slices.Collect(maps.Values(currentStates))
 
 		if err := s.validate(newList); err != nil {
 			return oldList, err

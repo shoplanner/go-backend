@@ -2,18 +2,17 @@ package api
 
 import (
 	"fmt"
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog"
-
 	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/favorite"
 	"go-backend/internal/backend/favorite/service"
 	"go-backend/internal/backend/product"
 	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 type ProductList struct {
@@ -21,6 +20,8 @@ type ProductList struct {
 }
 
 type Handler struct {
+	rerr.BaseHandler
+
 	service *service.Service
 	log     zerolog.Logger
 }
@@ -28,9 +29,11 @@ type Handler struct {
 func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logger) {
 	group := r.Group("/favorite")
 
+	log = log.With().Str("component", "favorites rest handler").Logger()
 	h := Handler{
-		service: service,
-		log:     log.With().Str("component", "favorites rest handler").Logger(),
+		BaseHandler: rerr.NewBaseHandler(log),
+		service:     service,
+		log:         log,
 	}
 
 	group.GET("/id/:id", h.GetFavoriteListByID)
@@ -60,7 +63,7 @@ func (h *Handler) GetFavoriteListByID(c *gin.Context) {
 		api.GetUserID(c),
 	)
 	if err != nil {
-		rerr.HandleError(c, err)
+		h.HandleError(c, err)
 		return
 	}
 
@@ -161,7 +164,7 @@ func (h *Handler) DeleteProductList(ctx *gin.Context) {
 		idList,
 	)
 	if err != nil {
-		rerr.HandleError(ctx, err)
+		h.HandleError(ctx, err)
 		return
 	}
 
@@ -178,8 +181,8 @@ func (h *Handler) DeleteProductList(ctx *gin.Context) {
 func (h *Handler) GetUserLists(c *gin.Context) {
 	models, err := h.service.GetListsByUserID(c.Copy(), api.GetUserID(c))
 	if err != nil {
-		h.log.Err(err).Stringer("userID", api.GetUserID(c)).Msg("getting user favorites lists")
-		rerr.HandleError(c, err)
+		h.log.Err(err).Stringer("user_id", api.GetUserID(c)).Msg("getting user favorites lists")
+		h.HandleError(c, err)
 		return
 	}
 
