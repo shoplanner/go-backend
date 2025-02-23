@@ -12,6 +12,8 @@ import (
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
+	"go-backend/pkg/ph"
 )
 
 type repo interface {
@@ -152,7 +154,7 @@ func (s *Service) AppendProducts(
 	ctx context.Context,
 	listID id.ID[list.ProductList],
 	userID id.ID[user.User],
-	products []id.ID[product.Product],
+	states map[id.ID[product.Product]]list.ProductStateOptions,
 ) (
 	list.ProductList,
 	error,
@@ -162,17 +164,33 @@ func (s *Service) AppendProducts(
 			return oldList, err
 		}
 
-		oldList.States = append(oldList.States, lo.Map(products, func(item id.ID[product.Product], index int) list.ProductState {
-			return list.ProductState{
-				Product:   product.Product{},
-				Count:     mo.PointerToOption(),
-				FormIndex: mo.Option{},
-				Status:    0,
-				CreatedAt: date.CreateDate{},
-				UpdatedAt: date.UpdateDate{},
+		newList := oldList.Clone()
+
+		for productID, stateOpts := range states {
+			newProductState := list.ProductState{
+				ProductStateOptions: stateOpts,
+				Product: product.Product{
+					Options: product.Options{
+						Name:     "",
+						Category: mo.None[product.Category](),
+						Forms:    []product.Form{},
+					},
+					ID:        productID,
+					CreatedAt: date.CreateDate[product.Product]{},
+					UpdatedAt: date.UpdateDate[product.Product]{},
+				},
+				CreatedAt: date.NewCreateDate[list.ProductState](),
+				UpdatedAt: date.NewUpdateDate[list.ProductState](),
 			}
-		})...)
-		return oldList, nil
+
+			oldList.States = append(oldList.States, newProductState)
+		}
+
+		if err := s.validate(oldList); err != nil {
+			return oldList, err
+		}
+
+		return newList, nil
 	})
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't append products: %w", err)
@@ -185,9 +203,39 @@ func (s *Service) DeleteProducts(
 	ctx context.Context,
 	listID id.ID[list.ProductList],
 	userID id.ID[user.User],
-	products []id.ID[list.ProductList],
+	toDelete []id.ID[product.Product],
 ) (
 	list.ProductList,
 	error,
 ) {
+	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		if err := oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
+			return oldList, err
+		}
+
+		newList := oldList.Clone()
+
+		currentStates := lo.SliceToMap(newList.States, func(item list.ProductState) (id.ID[product.Product], list.ProductState) {
+			return item.Product.ID, item
+		})
+
+		for _, productID := range toDelete {
+			if _, found := currentStates[productID]; !found {
+				return oldList, fmt.Errorf("%w: state with product id %s", myerr.ErrNotFound, productID)
+			}
+
+			delete(currentStates, productID)
+		}
+
+		if err := s.validate(newList); err != nil {
+			return oldList, err
+		}
+
+		return newList, nil
+	})
+	if err != nil {
+		return list.ProductList{}, fmt.Errorf("can't delete products from list %s: %w", listID, err)
+	}
+
+	return model, nil
 }

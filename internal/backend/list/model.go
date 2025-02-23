@@ -21,11 +21,16 @@ type StateStatus int
 // ENUM(planning=1, processing, archived).
 type ExecStatus int32
 
+type ProductStateOptions struct {
+	Count     mo.Option[int32] `json:"count"`
+	FormIndex mo.Option[int32] `json:"form_index"`
+	Status    StateStatus      `json:"status"`
+}
+
 type ProductState struct {
+	ProductStateOptions
+
 	Product   product.Product               `json:"product"`
-	Count     mo.Option[int32]              `json:"count"`
-	FormIndex mo.Option[int32]              `json:"form_index"`
-	Status    StateStatus                   `json:"status"`
 	CreatedAt date.CreateDate[ProductState] `json:"created_at"`
 	UpdatedAt date.UpdateDate[ProductState] `json:"updated_at"`
 }
@@ -75,4 +80,12 @@ func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) error {
 	}
 
 	return nil
+}
+
+func (l ProductList) Clone() ProductList {
+	list := l
+	list.Members = slices.Clone(l.Members)
+	list.States = slices.Clone(l.States)
+
+	return list
 }
