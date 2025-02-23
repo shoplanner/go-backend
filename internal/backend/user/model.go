@@ -3,11 +3,10 @@ package user
 import (
 	"context"
 	"errors"
-
 	"go-backend/pkg/id"
 )
 
-//go:generate go-enum --marshal --names --values
+//go:generate go tool github.com/abice/go-enum --marshal --names --values
 
 // ENUM(admin=1, user)
 type Role int32

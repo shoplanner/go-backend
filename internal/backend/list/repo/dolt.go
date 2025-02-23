@@ -173,13 +173,13 @@ func (r *Repo) GetAndUpdate(
 
 func entityToModel(entity ProductList) list.ProductList {
 	return list.ProductList{
-		Options: list.Options{
-			States: lo.Map(entity.States, func(item ProductListState, _ int) list.ProductState {
-				return stateToModel(item)
-			}),
-			Members: lo.Map(entity.Members, func(item ProductListMember, _ int) list.Member {
-				return memberToModel(item)
-			}),
+		States: lo.Map(entity.States, func(item ProductListState, _ int) list.ProductState {
+			return stateToModel(item)
+		}),
+		Members: lo.Map(entity.Members, func(item ProductListMember, _ int) list.Member {
+			return memberToModel(item)
+		}),
+		ListOptions: list.ListOptions{
 			Status: list.ExecStatus(entity.Status),
 			Title:  entity.Title,
 		},

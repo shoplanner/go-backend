@@ -2,14 +2,13 @@ package auth
 
 import (
 	"fmt"
-	"time"
-
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
+	"time"
 )
 
-//go:generate go-enum --marshal --names --values
+//go:generate go tool github.com/abice/go-enum --marshal --names --values
 
 // ENUM(active=1,revoked)
 type TokenStatus int32

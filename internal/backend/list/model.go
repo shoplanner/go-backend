@@ -12,7 +12,7 @@ import (
 	"github.com/samber/mo"
 )
 
-//go:generate go-enum --marshal --names --values
+//go:generate go tool github.com/abice/go-enum --marshal --names --values
 
 // ENUM(waiting=1, missing, taken, replaced).
 type StateStatus int
@@ -21,8 +21,8 @@ type StateStatus int
 type ExecStatus int32
 
 type ProductStateOptions struct {
-	Count     mo.Option[int32] `json:"count"`
-	FormIndex mo.Option[int32] `json:"form_index"`
+	Count     mo.Option[int32] `json:"count" swaggertype:"number" extensions:"x-nullable"`
+	FormIndex mo.Option[int32] `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
 	Status    StateStatus      `json:"status"`
 }
 
@@ -38,7 +38,7 @@ type ProductState struct {
 type MemberType int32
 
 type MemberOptions struct {
-	UserID id.ID[user.User] `json:"user_id"`
+	UserID id.ID[user.User] `json:"user_id" swaggertype:"string"`
 	Role   MemberType       `json:"type"`
 }
 
@@ -51,15 +51,15 @@ type Member struct {
 }
 
 type ListOptions struct {
-	States  []ProductState `json:"states"`
-	Members []Member       `json:"members"`
-	Status  ExecStatus     `json:"status"`
-	Title   string         `json:"title"`
+	Status ExecStatus `json:"status"`
+	Title  string     `json:"title"`
 }
 
 type ProductList struct {
 	ListOptions
 
+	States    []ProductState               `json:"states"`
+	Members   []Member                     `json:"members"`
 	ID        id.ID[ProductList]           `json:"id"`
 	UpdatedAt date.UpdateDate[ProductList] `json:"updated_at"`
 	CreatedAt date.CreateDate[ProductList] `json:"created_at"`

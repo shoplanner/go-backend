@@ -39,21 +39,21 @@ func NewService(repo repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options list.Options) (list.ProductList, error) {
+func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options list.ListOptions) (list.ProductList, error) {
 	newList := list.ProductList{
-		Options: list.Options{
-			States: []list.ProductState{},
-			Members: []list.Member{
-				{
-					MemberOptions: list.MemberOptions{
-						UserID: ownerID,
-						Role:   list.MemberTypeOwner,
-					},
-					UserName:  "",
-					CreatedAt: date.NewCreateDate[list.Member](),
-					UpdatedAt: date.NewUpdateDate[list.Member](),
+		States: []list.ProductState{},
+		Members: []list.Member{
+			{
+				MemberOptions: list.MemberOptions{
+					UserID: ownerID,
+					Role:   list.MemberTypeOwner,
 				},
+				UserName:  "",
+				CreatedAt: date.NewCreateDate[list.Member](),
+				UpdatedAt: date.NewUpdateDate[list.Member](),
 			},
+		},
+		ListOptions: list.ListOptions{
 			Status: list.ExecStatusPlanning,
 			Title:  options.Title,
 		},
@@ -73,7 +73,7 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options 
 	return newList, nil
 }
 
-func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], options list.Options) (list.ProductList, error) {
+func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], options list.ListOptions) (list.ProductList, error) {
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
 		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
 			return oldList, err
@@ -81,7 +81,7 @@ func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], us
 
 		newList := oldList.Clone()
 
-		newList.Options = options
+		newList.ListOptions = options
 
 		if err := s.validate(newList); err != nil {
 			return list.ProductList{}, err

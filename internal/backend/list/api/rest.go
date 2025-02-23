@@ -182,14 +182,14 @@ func (h *Handler) AddViewerList(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, model)
 }
 
-// @Summary delete viewers from product list
+// @Summary delete members from product list
 // @ID product-list-delete-members
 // @Tags ProductList
-// @Param body body []id.ID[user.User]
+// @Param body body []string true "id of members to delete"
 // @Param id path string true "product list id"
 // @Produce json
 // @Accept json
-// @Router /lists/{id}/members
+// @Router /lists/{id}/members [delete]
 // @Securty ApiAuthKey
 func (h *Handler) DeleteViewerList(c *gin.Context) {
 	var ids []id.ID[user.User]
@@ -215,10 +215,10 @@ func (h *Handler) DeleteViewerList(c *gin.Context) {
 // @ID product-list-add-products
 // @Tags ProductList
 // @Param id path string true "product list id"
-// @Param body body map[id.ID[product.Product]]list.ProductStateOptions "new products"
+// @Param body body map[string]list.ProductStateOptions true "new products"
 // @Produce json
 // @Accept json
-// @Router /lists/{id}/products
+// @Router /lists/{id}/products [post]
 // @Securty ApiAuthKey
 func (h *Handler) AddProducts(ctx *gin.Context) {
 	var opts map[id.ID[product.Product]]list.ProductStateOptions
@@ -241,8 +241,8 @@ func (h *Handler) AddProducts(ctx *gin.Context) {
 // @ID product-list-delete-products
 // @Tags ProductList
 // @Param id path string true "product list id"
-// @Param body body []id.ID[product.Product] "ids of deleting products"
-// @Router /lists/{id}/products
+// @Param body body []string true "ids of deleting products"
+// @Router /lists/{id}/products [delete]
 // @Security ApiAuthKey
 func (h *Handler) DeleteProducts(ctx *gin.Context) {
 	var toDelete []id.ID[product.Product]

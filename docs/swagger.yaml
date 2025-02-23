@@ -32,6 +32,67 @@ definitions:
       password:
         type: string
     type: object
+  list.ExecStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    type: integer
+    x-enum-varnames:
+    - ExecStatusPlanning
+    - ExecStatusProcessing
+    - ExecStatusArchived
+  list.ListOptions:
+    properties:
+      status:
+        $ref: '#/definitions/list.ExecStatus'
+      title:
+        type: string
+    type: object
+  list.MemberOptions:
+    properties:
+      type:
+        $ref: '#/definitions/list.MemberType'
+      user_id:
+        type: string
+    type: object
+  list.MemberType:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    type: integer
+    x-enum-varnames:
+    - MemberTypeOwner
+    - MemberTypeAdmin
+    - MemberTypeEditor
+    - MemberTypeExecuting
+    - MemberTypeViewer
+  list.ProductStateOptions:
+    properties:
+      count:
+        type: number
+        x-nullable: true
+      form_index:
+        type: number
+        x-nullable: true
+      status:
+        $ref: '#/definitions/list.StateStatus'
+    type: object
+  list.StateStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    type: integer
+    x-enum-varnames:
+    - StateStatusWaiting
+    - StateStatusMissing
+    - StateStatusTaken
+    - StateStatusReplaced
   product.Options:
     properties:
       category:
@@ -199,6 +260,157 @@ paths:
       summary: get all favorites lists, related to logged user
       tags:
       - Favorites
+  /lists:
+    get:
+      operationId: product-list-get
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: get product lists by user id
+      tags:
+      - ProductList
+    post:
+      consumes:
+      - application/json
+      operationId: product-list-create
+      parameters:
+      - description: options of new product list
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/list.ListOptions'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: creates new product list
+      tags:
+      - ProductList
+  /lists/{id}:
+    delete:
+      operationId: product-list-delete-by-id
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: delete product list by id
+      tags:
+      - ProductList
+    get:
+      operationId: product-list-get-by-id
+      parameters:
+      - description: id of product list
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: get product list by list id
+      tags:
+      - ProductList
+    put:
+      consumes:
+      - application/json
+      operationId: product-list-update-by-id
+      parameters:
+      - description: opts to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/list.ListOptions'
+      - description: id of product list
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: update product list by id
+      tags:
+      - ProductList
+  /lists/{id}/members:
+    delete:
+      consumes:
+      - application/json
+      operationId: product-list-delete-members
+      parameters:
+      - description: id of members to delete
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      - description: product list id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: delete members from product list
+      tags:
+      - ProductList
+  /lists/{id}/products:
+    delete:
+      operationId: product-list-delete-products
+      parameters:
+      - description: product list id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ids of deleting products
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      responses: {}
+      security:
+      - ApiAuthKey: []
+      summary: delete products from product list
+      tags:
+      - ProductList
+    post:
+      consumes:
+      - application/json
+      operationId: product-list-add-products
+      parameters:
+      - description: product list id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: new products
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            $ref: '#/definitions/list.ProductStateOptions'
+          type: object
+      produces:
+      - application/json
+      responses: {}
+      summary: add new products to product list
+      tags:
+      - ProductList
   /product:
     post:
       consumes:

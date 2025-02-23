@@ -217,6 +217,239 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/lists": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "get product lists by user id",
+                "operationId": "product-list-get",
+                "responses": {}
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "creates new product list",
+                "operationId": "product-list-create",
+                "parameters": [
+                    {
+                        "description": "options of new product list",
+                        "name": "opts",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/list.ListOptions"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/lists/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "get product list by list id",
+                "operationId": "product-list-get-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of product list",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            },
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "update product list by id",
+                "operationId": "product-list-update-by-id",
+                "parameters": [
+                    {
+                        "description": "opts to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/list.ListOptions"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "id of product list",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "delete product list by id",
+                "operationId": "product-list-delete-by-id",
+                "responses": {}
+            }
+        },
+        "/lists/{id}/members": {
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "delete members from product list",
+                "operationId": "product-list-delete-members",
+                "parameters": [
+                    {
+                        "description": "id of members to delete",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "product list id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/lists/{id}/products": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "add new products to product list",
+                "operationId": "product-list-add-products",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "product list id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "new products",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/list.ProductStateOptions"
+                            }
+                        }
+                    }
+                ],
+                "responses": {}
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiAuthKey": []
+                    }
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "delete products from product list",
+                "operationId": "product-list-delete-products",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "product list id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ids of deleting products",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/product": {
             "post": {
                 "security": [
@@ -627,6 +860,89 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "list.ExecStatus": {
+            "type": "integer",
+            "enum": [
+                1,
+                2,
+                3
+            ],
+            "x-enum-varnames": [
+                "ExecStatusPlanning",
+                "ExecStatusProcessing",
+                "ExecStatusArchived"
+            ]
+        },
+        "list.ListOptions": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "$ref": "#/definitions/list.ExecStatus"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "list.MemberOptions": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "$ref": "#/definitions/list.MemberType"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "list.MemberType": {
+            "type": "integer",
+            "enum": [
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "x-enum-varnames": [
+                "MemberTypeOwner",
+                "MemberTypeAdmin",
+                "MemberTypeEditor",
+                "MemberTypeExecuting",
+                "MemberTypeViewer"
+            ]
+        },
+        "list.ProductStateOptions": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "number",
+                    "x-nullable": true
+                },
+                "form_index": {
+                    "type": "number",
+                    "x-nullable": true
+                },
+                "status": {
+                    "$ref": "#/definitions/list.StateStatus"
+                }
+            }
+        },
+        "list.StateStatus": {
+            "type": "integer",
+            "enum": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "StateStatusWaiting",
+                "StateStatusMissing",
+                "StateStatusTaken",
+                "StateStatusReplaced"
+            ]
         },
         "product.Options": {
             "type": "object",

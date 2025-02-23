@@ -1,4 +1,4 @@
-FROM golang:1.23.4 AS build
+FROM golang:1.24.0 AS build
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ RUN go install github.com/go-task/task/v3/cmd/task@v3.40.1
 
 COPY taskfile.yml .
 
-RUN task deps
+# RUN task deps
 
 COPY go.mod .
 COPY go.sum .
