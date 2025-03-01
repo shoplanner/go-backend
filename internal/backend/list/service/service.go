@@ -3,17 +3,18 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
+
+	"github.com/samber/lo"
+	"github.com/samber/mo"
+
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
-	"maps"
-	"slices"
-
-	"github.com/samber/lo"
-	"github.com/samber/mo"
 )
 
 type repo interface {
@@ -213,7 +214,6 @@ func (s *Service) AppendProducts(
 				ProductStateOptions: stateOpts,
 				Product: product.Product{
 					Options: product.Options{
-						Name:     "",
 						Category: mo.None[product.Category](),
 						Forms:    []product.Form{},
 					},

@@ -1,9 +1,13 @@
 version: "3"
 
+vars:
+
 env:
   PROJECT_ROOT:
     sh: pwd
-  SQLC_HELPER: "{{.PROJECT_ROOT}}/tools/sqlc_helper.sh"
+  SQLC_HELPER:
+    sh: python -c "import os; print(os.path.join(os.getcwd(), \"tools\", \"sqlc_helper.py\"), end=\"\")"
+
 tasks:
   generate:
     cmds:

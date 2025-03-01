@@ -19,7 +19,7 @@ import (
 	"go-backend/pkg/id"
 )
 
-//go:generate $SQLC_HELPER
+//go:generate python $SQLC_HELPER
 
 type ShopMapRepo struct {
 	queries *sqlgen.Queries

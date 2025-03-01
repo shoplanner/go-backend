@@ -13,8 +13,9 @@ func TestHash(t *testing.T) {
 }
 
 type HashSuite struct {
-	hash hashing.HashMaster
 	suite.Suite
+
+	hash hashing.HashMaster
 }
 
 func (s *HashSuite) TestCompare() {

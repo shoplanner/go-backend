@@ -1,6 +1,11 @@
 package api
 
 import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+
 	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/list/service"
@@ -8,10 +13,6 @@ import (
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 )
 
 type Handler struct {

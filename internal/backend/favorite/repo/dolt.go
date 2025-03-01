@@ -4,13 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"go-backend/internal/backend/favorite"
-	"go-backend/internal/backend/product"
-	"go-backend/internal/backend/product/repo"
-	"go-backend/internal/backend/user"
-	"go-backend/pkg/date"
-	"go-backend/pkg/god"
-	"go-backend/pkg/id"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,7 +11,14 @@ import (
 	"github.com/samber/mo"
 	"gorm.io/gorm"
 
+	"go-backend/internal/backend/favorite"
+	"go-backend/internal/backend/product"
+	"go-backend/internal/backend/product/repo"
+	"go-backend/internal/backend/user"
 	userRepo "go-backend/internal/backend/user/repo"
+	"go-backend/pkg/date"
+	"go-backend/pkg/god"
+	"go-backend/pkg/id"
 )
 
 type FavoriteList struct {
