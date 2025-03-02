@@ -1,16 +1,20 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"go-backend/internal/backend/user"
+	"go-backend/pkg/id"
 )
 
 type listService interface {
-	SubscribeUpdates()
+	ListenEvents(ctx context.Context, userID id.ID[user.User])
 }
 
 type WebSocket struct {

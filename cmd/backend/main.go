@@ -9,11 +9,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"go-backend/internal/backend/auth"
-	"go-backend/internal/backend/auth/provider"
-	"go-backend/internal/backend/config"
-	"go-backend/pkg/bd"
-	"go-backend/pkg/hashing"
 	stdLog "log"
 	"net"
 	"os"
@@ -30,11 +25,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"go-backend/internal/backend/auth"
 	authAPI "go-backend/internal/backend/auth/api"
-
+	"go-backend/internal/backend/auth/provider"
 	authRepo "go-backend/internal/backend/auth/repo"
 	authService "go-backend/internal/backend/auth/service"
-
+	"go-backend/internal/backend/config"
 	favoritesAPI "go-backend/internal/backend/favorite/api"
 	favoritesRepo "go-backend/internal/backend/favorite/repo"
 	favoritesService "go-backend/internal/backend/favorite/service"
@@ -48,6 +44,8 @@ import (
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
+	"go-backend/pkg/bd"
+	"go-backend/pkg/hashing"
 )
 
 const clientName = "shoplanner"
@@ -108,6 +106,7 @@ func main() {
 		log.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
 	}
 
+	// nolint:exhaustruct
 	doltCfg := mysql.Config{
 		User:                 envCfg.Database.User,
 		Passwd:               envCfg.Database.Password,
@@ -117,6 +116,7 @@ func main() {
 		ParseTime:            true,
 	}
 
+	// nolint:exhaustruct
 	redisClient, err := rueidis.NewClient(rueidis.ClientOption{
 		Username:    envCfg.Redis.User,
 		Password:    envCfg.Redis.Password,
@@ -134,9 +134,11 @@ func main() {
 	sqlAdapter := bd.NewDB(sqlDB, parentLogger.With().Logger())
 
 	doltCfg.DBName = envCfg.Database.Name
-	gormDB, err := gorm.Open(gormMySQL.Open(doltCfg.FormatDSN()), &gorm.Config{
-		Logger: gormLog,
-	})
+	gormDB, err := gorm.Open(
+		gormMySQL.Open(doltCfg.FormatDSN()),
+		// nolint:exhaustruct
+		&gorm.Config{Logger: gormLog},
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gorm: connecting to database")
 	}

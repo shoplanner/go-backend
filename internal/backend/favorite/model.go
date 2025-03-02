@@ -2,12 +2,13 @@ package favorite
 
 import (
 	"fmt"
+	"slices"
+
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
-	"slices"
 )
 
 //go:generate go tool github.com/abice/go-enum --marshal --names --values

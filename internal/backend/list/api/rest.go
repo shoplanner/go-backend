@@ -21,18 +21,14 @@ type Handler struct {
 	service *service.Service
 }
 
-func New(log zerolog.Logger, service *service.Service) *Handler {
+func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logger) {
+	group := r.Group("/lists")
 	log = log.With().Str("component", "product list handler").Logger()
-	return &Handler{
+
+	h := &Handler{
 		BaseHandler: rerr.NewBaseHandler(log),
 		service:     service,
 	}
-}
-
-func RegisterREST(r *gin.RouterGroup, service *service.Service) {
-	group := r.Group("/lists")
-
-	h := Handler{service: service}
 
 	r.POST("", h.CreateList)
 
@@ -170,7 +166,7 @@ func (h *Handler) AddViewerList(ctx *gin.Context) {
 		return
 	}
 
-	if ok := h.Decode(ctx, &members); ok {
+	if ok = h.Decode(ctx, &members); ok {
 		return
 	}
 
@@ -199,7 +195,7 @@ func (h *Handler) DeleteViewerList(c *gin.Context) {
 		return
 	}
 
-	if ok := h.Decode(c, &ids); !ok {
+	if ok = h.Decode(c, &ids); !ok {
 		return
 	}
 
@@ -253,7 +249,7 @@ func (h *Handler) DeleteProducts(ctx *gin.Context) {
 		return
 	}
 
-	if ok := h.Decode(ctx, &toDelete); !ok {
+	if ok = h.Decode(ctx, &toDelete); !ok {
 		return
 	}
 

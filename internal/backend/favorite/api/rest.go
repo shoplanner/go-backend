@@ -2,17 +2,18 @@ package api
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+
 	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/favorite"
 	"go-backend/internal/backend/favorite/service"
 	"go-backend/internal/backend/product"
 	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 )
 
 type ProductList struct {
