@@ -15,13 +15,9 @@ import (
 	"go-backend/pkg/id"
 )
 
-type eventProvider interface {
-	GetEventChan() <-chan list.Event
-	Close() error
-}
-
-type listService[T eventProvider] interface {
-	ListenEvents(ctx context.Context, userID id.ID[user.User], listID id.ID[list.ProductList]) (T, error)
+type listService interface {
+	ListenEvents(context.Context, id.ID[user.User], id.ID[list.ProductList]) (<-chan list.Event, error)
+	StopListen(context.Context, id.ID[user.User], id.ID[list.ProductList]) error
 }
 
 type WebSocket struct {
@@ -29,10 +25,10 @@ type WebSocket struct {
 
 	log    zerolog.Logger
 	config websocket.Upgrader
-	list   listService[eventProvider]
+	list   listService
 }
 
-func RegisterWebSocket(r *gin.RouterGroup, listService listService[eventProvider], log zerolog.Logger) {
+func RegisterWebSocket(r *gin.RouterGroup, listService listService, log zerolog.Logger) {
 	log = log.With().Str("component", "product list websocket").Logger()
 	w := WebSocket{BaseHandler: rerr.NewBaseHandler(log), log: log, list: listService, config: websocket.Upgrader{
 		HandshakeTimeout:  0,
@@ -62,17 +58,16 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 	}
 	defer conn.Close()
 
-	provider, err := s.list.ListenEvents(ctx, api.GetUserID(ctx), listID)
+	eventChannel, err := s.list.ListenEvents(ctx, api.GetUserID(ctx), listID)
 	if err != nil {
 		s.HandleError(ctx, fmt.Errorf("getting event channel failed: %w", err))
 		return
 	}
-	eventChannel := provider.GetEventChan()
 
 	conn.SetCloseHandler(func(code int, text string) error {
 		s.log.Info().Str("text", text).Int("code", code).Msg("closing updater")
 		close(closeChan)
-		closeErr := provider.Close()
+		closeErr := s.list.StopListen(ctx, api.GetUserID(ctx), listID)
 		if closeErr != nil {
 			s.log.Err(closeErr).Msg("closing event channel failed")
 		}

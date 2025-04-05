@@ -2,16 +2,35 @@ package service
 
 import (
 	"context"
-	"slices"
+	"fmt"
+	"sync"
 
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
-type EventProvider struct {
-	ch     chan list.Event
+type providerID struct {
 	userID id.ID[user.User]
+	listID id.ID[list.ProductList]
+}
+
+type eventProvider struct {
+	ch    chan list.Event
+	id    providerID
+	close func()
+}
+
+func newEventProvider(id providerID) *eventProvider {
+	ch := make(chan list.Event)
+	return &eventProvider{
+		ch: ch,
+		id: id,
+		close: sync.OnceFunc(func() {
+			close(ch)
+		}),
+	}
 }
 
 func (s *Service) ListenEvents(
@@ -19,7 +38,7 @@ func (s *Service) ListenEvents(
 	userID id.ID[user.User],
 	listID id.ID[list.ProductList],
 ) (
-	*EventProvider,
+	<-chan list.Event,
 	error,
 ) {
 	currentList, err := s.GetByID(ctx, listID, userID)
@@ -27,18 +46,17 @@ func (s *Service) ListenEvents(
 		return nil, err
 	}
 
-	provider := &EventProvider{
-		ch:     make(chan list.Event),
-		userID: userID,
-	}
-
 	s.channelsLock.Lock()
 
-	providers := s.channels[listID.String()]
-	if idx := slices.IndexFunc(providers, func(p *EventProvider) bool { return p.userID == userID }); idx != -1 {
-		provider = providers[idx]
+	id := providerID{userID: userID, listID: listID}
+
+	provider, found := s.channels[id]
+
+	if found {
+		provider = provider
 	} else {
-		s.channels[listID.String()] = append(s.channels[listID.String()], provider)
+		provider = newEventProvider(id)
+		s.channels[id] = provider
 	}
 
 	s.channelsLock.Unlock()
@@ -49,7 +67,29 @@ func (s *Service) ListenEvents(
 		Change: currentList,
 	}
 
-	return provider, nil
+	return provider.ch, nil
+}
+
+func (s *Service) StopListenEvents(
+	ctx context.Context,
+	userID id.ID[user.User],
+	listID id.ID[list.ProductList],
+) error {
+	s.channelsLock.Lock()
+	defer s.channelsLock.Unlock()
+
+	id := providerID{
+		userID: userID,
+		listID: listID,
+	}
+
+	_, found := s.channels[id]
+	if found {
+		delete(s.channels, id)
+		return nil
+	} else {
+		return fmt.Errorf("%w: listener %d", myerr.ErrNotFound, id)
+	}
 }
 
 func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Member, change any) {

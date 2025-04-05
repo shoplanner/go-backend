@@ -35,7 +35,7 @@ type repo interface {
 }
 
 type Service struct {
-	channels     map[string][]*EventProvider
+	channels     map[providerID]*eventProvider
 	channelsLock sync.RWMutex
 	repo         repo
 }
@@ -43,7 +43,7 @@ type Service struct {
 func NewService(repo repo) *Service {
 	return &Service{
 		repo:         repo,
-		channels:     map[string][]*EventProvider{},
+		channels:     map[providerID]*eventProvider{},
 		channelsLock: sync.RWMutex{},
 	}
 }

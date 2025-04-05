@@ -187,8 +187,5 @@ func (h *Handler) GetUserLists(c *gin.Context) {
 		return
 	}
 
-	fmt.Println()
-	fmt.Println(models)
-
 	c.JSON(http.StatusOK, models)
 }
