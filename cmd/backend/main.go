@@ -34,6 +34,9 @@ import (
 	favoritesAPI "go-backend/internal/backend/favorite/api"
 	favoritesRepo "go-backend/internal/backend/favorite/repo"
 	favoritesService "go-backend/internal/backend/favorite/service"
+	listAPI "go-backend/internal/backend/list/api"
+	listRepo "go-backend/internal/backend/list/repo"
+	listService "go-backend/internal/backend/list/service"
 	productAPI "go-backend/internal/backend/product/api"
 	productRepo "go-backend/internal/backend/product/repo"
 	productService "go-backend/internal/backend/product/service"
@@ -70,8 +73,6 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -82,6 +83,7 @@ func main() {
 		IgnoreRecordNotFoundError: false,
 		ParameterizedQueries:      false,
 		LogLevel:                  logger.Info,
+		SlowThreshold:             0,
 	})
 
 	appCfg, err := config.ParseConfig(*configPath)
@@ -105,6 +107,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
 	}
+
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	// nolint:exhaustruct
 	doltCfg := mysql.Config{
@@ -136,7 +141,6 @@ func main() {
 	doltCfg.DBName = envCfg.Database.Name
 	gormDB, err := gorm.Open(
 		gormMySQL.Open(doltCfg.FormatDSN()),
-		// nolint:exhaustruct
 		&gorm.Config{Logger: gormLog},
 	)
 	if err != nil {
@@ -186,9 +190,12 @@ func main() {
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing favorites repo")
 	}
+	listRepo, err := listRepo.NewRepo(ctx, gormDB)
+	if err != nil {
+		parentLogger.Fatal().Err(err).Msg("initalizing list repo")
+	}
 
 	// business logic
-
 	userService := userService.NewService(userDB, hashing.HashMaster{})
 	authService := authService.New(
 		userService,
@@ -203,6 +210,7 @@ func main() {
 	shopMapService := shopMapService.NewService(userService, shopMapRepo)
 	productService := productService.NewService(productRepo)
 	favoriteService := favoritesService.NewService(favoritesRepo, userService)
+	listService := listService.NewService(listRepo)
 
 	// API
 
@@ -219,6 +227,9 @@ func main() {
 	productAPI.RegisterREST(apiGroup, productService)
 	shopMapAPI.RegisterREST(apiGroup, shopMapService)
 	favoritesAPI.RegisterREST(apiGroup, favoriteService, parentLogger.With().Logger())
+	listAPI.RegisterREST(apiGroup, listService, parentLogger)
+
+	listAPI.RegisterWebSocket(apiGroup, listService, parentLogger)
 
 	go func() {
 		if err = router.RunListener(listener); err != nil && ctx.Err() == nil {

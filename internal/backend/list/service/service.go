@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/samber/mo"
@@ -33,14 +35,27 @@ type repo interface {
 }
 
 type Service struct {
-	repo repo
+	channels     map[string][]*EventProvider
+	channelsLock sync.RWMutex
+	repo         repo
 }
 
 func NewService(repo repo) *Service {
-	return &Service{repo: repo}
+	return &Service{
+		repo:         repo,
+		channels:     map[string][]*EventProvider{},
+		channelsLock: sync.RWMutex{},
+	}
 }
 
-func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options list.ListOptions) (list.ProductList, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	ownerID id.ID[user.User],
+	options list.ListOptions,
+) (
+	list.ProductList,
+	error,
+) {
 	newList := list.ProductList{
 		States: []list.ProductState{},
 		Members: []list.Member{
@@ -74,17 +89,28 @@ func (s *Service) Create(ctx context.Context, ownerID id.ID[user.User], options 
 	return newList, nil
 }
 
-func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], options list.ListOptions) (list.ProductList, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	options list.ListOptions,
+) (
+	list.ProductList,
+	error,
+) {
+	var member list.Member
+	var err error
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
-			return oldList, err
+		member, err = oldList.CheckRole(userID, list.MemberTypeAdmin)
+		if err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
 		newList := oldList.Clone()
 
 		newList.ListOptions = options
 
-		if err := s.validate(newList); err != nil {
+		if err = s.validate(newList); err != nil {
 			return list.ProductList{}, err
 		}
 
@@ -94,28 +120,45 @@ func (s *Service) Update(ctx context.Context, listID id.ID[list.ProductList], us
 		return model, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
+	s.sendUpdateEvent(listID, member, list.ListOptionsChange{
+		NewOptions: options,
+	})
+
 	return model, nil
 }
 
 func (s *Service) DeleteList(ctx context.Context, userID id.ID[user.User], listID id.ID[list.ProductList]) error {
-	err := s.repo.GetAndDeleteList(ctx, listID, func(oldList list.ProductList) error {
-		return oldList.CheckRole(userID, list.MemberTypeEditor)
+	var member list.Member
+	var err error
+
+	err = s.repo.GetAndDeleteList(ctx, listID, func(oldList list.ProductList) error {
+		member, err = oldList.CheckRole(userID, list.MemberTypeEditor)
+		return fmt.Errorf("role verification failed: %w", err)
 	})
 	if err != nil {
 		return fmt.Errorf("can't delete product list %s: %w", listID, err)
 	}
 
+	s.sendUpdateEvent(listID, member, list.ListDeletedChange{})
+
 	return nil
 }
 
-func (s *Service) GetByID(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User]) (list.ProductList, error) {
+func (s *Service) GetByID(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+) (
+	list.ProductList,
+	error,
+) {
 	model, err := s.repo.GetByListID(ctx, listID)
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't get list %s from storage: %w", listID, err)
 	}
 
-	if err := model.CheckRole(userID, list.MemberTypeViewer); err != nil {
-		return list.ProductList{}, err
+	if _, err = model.CheckRole(userID, list.MemberTypeViewer); err != nil {
+		return list.ProductList{}, fmt.Errorf("checking role failed: %w", err)
 	}
 
 	return model, nil
@@ -130,21 +173,35 @@ func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]l
 	return models, nil
 }
 
-func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], members []list.MemberOptions) (list.ProductList, error) {
+func (s *Service) AppendMembers(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	members []list.MemberOptions,
+) (
+	list.ProductList,
+	error,
+) {
+	var member list.Member
+	var err error
+
+	newMembers := lo.Map(members, func(item list.MemberOptions, _ int) list.Member {
+		return list.Member{
+			MemberOptions: item,
+			CreatedAt:     date.NewCreateDate[list.Member](),
+			UpdatedAt:     date.NewUpdateDate[list.Member](),
+			UserName:      "",
+		}
+	})
+
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
-			return oldList, err
+		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		oldList.Members = append(oldList.Members, lo.Map(members, func(item list.MemberOptions, _ int) list.Member {
-			return list.Member{
-				MemberOptions: item,
-				CreatedAt:     date.NewCreateDate[list.Member](),
-				UpdatedAt:     date.NewUpdateDate[list.Member](),
-			}
-		})...)
+		oldList.Members = append(oldList.Members, newMembers...)
 
-		if err := s.validate(oldList); err != nil {
+		if err = s.validate(oldList); err != nil {
 			return oldList, err
 		}
 
@@ -154,13 +211,28 @@ func (s *Service) AppendMembers(ctx context.Context, listID id.ID[list.ProductLi
 		return list.ProductList{}, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
+	s.sendUpdateEvent(listID, member, list.MembersAddedChange{
+		NewMembers: newMembers,
+	})
+
 	return model, nil
 }
 
-func (s *Service) DeleteMembers(ctx context.Context, listID id.ID[list.ProductList], userID id.ID[user.User], toDelete []id.ID[user.User]) (list.ProductList, error) {
+func (s *Service) DeleteMembers(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	toDelete []id.ID[user.User],
+) (
+	list.ProductList,
+	error,
+) {
+	var member list.Member
+	var err error
+
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if err := oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
-			return oldList, err
+		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
 		newList := oldList.Clone()
@@ -180,7 +252,7 @@ func (s *Service) DeleteMembers(ctx context.Context, listID id.ID[list.ProductLi
 
 		newList.Members = slices.Collect(maps.Values(currentMembers))
 
-		if err := s.validate(newList); err != nil {
+		if err = s.validate(newList); err != nil {
 			return oldList, err
 		}
 
@@ -189,6 +261,10 @@ func (s *Service) DeleteMembers(ctx context.Context, listID id.ID[list.ProductLi
 	if err != nil {
 		return model, fmt.Errorf("can't delete members from list %s: %w", listID, err)
 	}
+
+	s.sendUpdateEvent(listID, member, list.MembersDeletedChange{
+		UserIDs: toDelete,
+	})
 
 	return model, nil
 }
@@ -202,33 +278,40 @@ func (s *Service) AppendProducts(
 	list.ProductList,
 	error,
 ) {
+	var member list.Member
+	var err error
+
+	newStates := make([]list.ProductState, 0, len(states))
+	for productID, stateOpts := range states {
+		newProductState := list.ProductState{
+			ProductStateOptions: stateOpts,
+			Product: product.Product{
+				Options: product.Options{
+					Category: mo.None[product.Category](),
+					Forms:    []product.Form{},
+					Name:     "",
+				},
+				ID:        productID,
+				CreatedAt: date.CreateDate[product.Product]{Time: time.Time{}},
+				UpdatedAt: date.UpdateDate[product.Product]{Time: time.Time{}},
+			},
+			CreatedAt: date.NewCreateDate[list.ProductState](),
+			UpdatedAt: date.NewUpdateDate[list.ProductState](),
+		}
+
+		newStates = append(newStates, newProductState)
+	}
+
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if err := oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
-			return oldList, err
+		if member, err = oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
 		newList := oldList.Clone()
 
-		for productID, stateOpts := range states {
-			newProductState := list.ProductState{
-				ProductStateOptions: stateOpts,
-				Product: product.Product{
-					Options: product.Options{
-						Category: mo.None[product.Category](),
-						Forms:    []product.Form{},
-					},
-					ID:        productID,
-					CreatedAt: date.CreateDate[product.Product]{},
-					UpdatedAt: date.UpdateDate[product.Product]{},
-				},
-				CreatedAt: date.NewCreateDate[list.ProductState](),
-				UpdatedAt: date.NewUpdateDate[list.ProductState](),
-			}
+		newList.States = append(newList.States, newStates...)
 
-			oldList.States = append(oldList.States, newProductState)
-		}
-
-		if err := s.validate(oldList); err != nil {
+		if err = s.validate(oldList); err != nil {
 			return oldList, err
 		}
 
@@ -237,6 +320,8 @@ func (s *Service) AppendProducts(
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't append products: %w", err)
 	}
+
+	s.sendUpdateEvent(listID, member, list.ProductsAddedChange{Products: newStates})
 
 	return model, nil
 }
@@ -250,16 +335,22 @@ func (s *Service) DeleteProducts(
 	list.ProductList,
 	error,
 ) {
+	var member list.Member
+	var err error
+
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if err := oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
-			return oldList, err
+		if member, err = oldList.CheckRole(userID, list.MemberTypeEditor); err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
 		newList := oldList.Clone()
 
-		currentStates := lo.SliceToMap(newList.States, func(item list.ProductState) (id.ID[product.Product], list.ProductState) {
-			return item.Product.ID, item
-		})
+		currentStates := lo.SliceToMap(
+			newList.States,
+			func(item list.ProductState) (id.ID[product.Product], list.ProductState) {
+				return item.Product.ID, item
+			},
+		)
 
 		for _, productID := range toDelete {
 			if _, found := currentStates[productID]; !found {
@@ -271,7 +362,7 @@ func (s *Service) DeleteProducts(
 
 		newList.States = slices.Collect(maps.Values(currentStates))
 
-		if err := s.validate(newList); err != nil {
+		if err = s.validate(newList); err != nil {
 			return oldList, err
 		}
 
@@ -280,6 +371,10 @@ func (s *Service) DeleteProducts(
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't delete products from list %s: %w", listID, err)
 	}
+
+	s.sendUpdateEvent(listID, member, list.ProductsRemovedChange{
+		IDs: toDelete,
+	})
 
 	return model, nil
 }

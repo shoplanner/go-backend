@@ -4,4 +4,5 @@ bin/**
 .idea
 *.lua
 dolt/**
+**.exe
 redis_data/**

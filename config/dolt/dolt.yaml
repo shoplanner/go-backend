@@ -1,0 +1,6 @@
+listener:
+  tls_key: "/var/lib/dolt/dolt.key"
+  tls_cert: "/var/lib/dolt/dolt.crt"
+  host: 0.0.0.0
+  port: 3306
+  require_secure_transport: true

@@ -5,13 +5,14 @@ env:
     sh: pwd
   SQLC_HELPER:
     sh: python -c "import os; print(os.path.join(os.getcwd(), \"tools\", \"sqlc_helper.py\"), end=\"\")"
+  GOENUM: go tool github.com/abice/go-enum --marshal --names --values -f $GOFILE.enum.g.go
 
 tasks:
   generate:
     cmds:
       - go tool github.com/swaggo/swag/cmd/swag init -g cmd/backend/main.go
       - go generate ./...
-      - go tool github.com/go-swagger/go-swagger/cmd/swagger generate cli
+      # - go tool github.com/go-swagger/go-swagger/cmd/swagger generate cli
   build:
     deps: [generate]
     cmds:

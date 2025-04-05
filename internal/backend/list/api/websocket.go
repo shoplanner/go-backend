@@ -3,48 +3,95 @@ package api
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 
+	"go-backend/internal/backend/auth/api"
+	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/user"
+	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
 )
 
-type listService interface {
-	ListenEvents(ctx context.Context, userID id.ID[user.User])
+type eventProvider interface {
+	GetEventChan() <-chan list.Event
+	Close() error
+}
+
+type listService[T eventProvider] interface {
+	ListenEvents(ctx context.Context, userID id.ID[user.User], listID id.ID[list.ProductList]) (T, error)
 }
 
 type WebSocket struct {
-	log    *slog.Logger
+	rerr.BaseHandler
+
+	log    zerolog.Logger
 	config websocket.Upgrader
-	list   listService
+	list   listService[eventProvider]
 }
 
-func NewWebSocket(r *gin.Engine, listService listService) {
-	w := WebSocket{
-		log:  slog.Default().With("component", "product list websocket"),
-		list: listService,
-	}
-
-	listService.SubscribeUpdates()
+func RegisterWebSocket(r *gin.RouterGroup, listService listService[eventProvider], log zerolog.Logger) {
+	log = log.With().Str("component", "product list websocket").Logger()
+	w := WebSocket{BaseHandler: rerr.NewBaseHandler(log), log: log, list: listService, config: websocket.Upgrader{
+		HandshakeTimeout:  0,
+		ReadBufferSize:    0,
+		WriteBufferSize:   0,
+		WriteBufferPool:   nil,
+		Subprotocols:      nil,
+		Error:             nil,
+		CheckOrigin:       nil,
+		EnableCompression: false,
+	}}
 
 	r.GET("/list/id/:id/ws", w.Listen)
 }
 
 func (s *WebSocket) Listen(ctx *gin.Context) {
-	conn, err := s.config.Upgrade(ctx.Writer, ctx.Request, nil)
-	if err != nil {
-		s.log.Error(fmt.Sprintf("can't open websocket: %s", err.Error()))
-		ctx.String(http.StatusInternalServerError, "can't open websocket")
+	closeChan := make(chan struct{})
+	listID, ok := rerr.PathID[list.ProductList](ctx)
+	if !ok {
 		return
 	}
 
+	conn, err := s.config.Upgrade(ctx.Writer, ctx.Request, nil)
+	if err != nil {
+		s.HandleError(ctx, fmt.Errorf("opening websocket: %w", err))
+		return
+	}
+	defer conn.Close()
+
+	provider, err := s.list.ListenEvents(ctx, api.GetUserID(ctx), listID)
+	if err != nil {
+		s.HandleError(ctx, fmt.Errorf("getting event channel failed: %w", err))
+		return
+	}
+	eventChannel := provider.GetEventChan()
+
+	conn.SetCloseHandler(func(code int, text string) error {
+		s.log.Info().Str("text", text).Int("code", code).Msg("closing updater")
+		close(closeChan)
+		closeErr := provider.Close()
+		if closeErr != nil {
+			s.log.Err(closeErr).Msg("closing event channel failed")
+		}
+		return nil
+	})
+
 	for {
-		if err := conn.WriteJSON("event"); err != nil {
-			s.log.Error(err.Error())
+		select {
+		case event, open := <-eventChannel:
+			if !open {
+				return
+			}
+
+			err = conn.WriteJSON(event)
+			if err != nil {
+				s.HandleError(ctx, fmt.Errorf("writing JSON message: %w", err))
+				return
+			}
+		case <-closeChan:
 			return
 		}
 	}

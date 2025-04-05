@@ -2,14 +2,17 @@ package list
 
 import (
 	"fmt"
+	"slices"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/samber/mo"
+
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
-	"slices"
-
-	"github.com/samber/mo"
 )
 
 //go:generate go tool github.com/abice/go-enum --marshal --names --values
@@ -50,7 +53,16 @@ type Member struct {
 	UpdatedAt date.UpdateDate[Member] `json:"updated_at"`
 }
 
-type ListOptions struct {
+func NewZeroMember() Member {
+	return Member{
+		MemberOptions: MemberOptions{UserID: id.ID[user.User]{UUID: uuid.Nil}, Role: 0},
+		UserName:      "",
+		CreatedAt:     date.CreateDate[Member]{Time: time.Time{}},
+		UpdatedAt:     date.UpdateDate[Member]{Time: time.Time{}},
+	}
+}
+
+type ListOptions struct { // nolint:exported // here is another options
 	Status ExecStatus `json:"status"`
 	Title  string     `json:"title"`
 }
@@ -65,20 +77,20 @@ type ProductList struct {
 	CreatedAt date.CreateDate[ProductList] `json:"created_at"`
 }
 
-func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) error {
+func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member, error) {
 	idx := slices.IndexFunc(l.Members, func(m Member) bool {
 		return m.UserID == userID
 	})
 
 	if idx == -1 {
-		return fmt.Errorf("%w: user %s is not belongs to list %s", myerr.ErrForbidden, userID, l.ID)
+		return NewZeroMember(), fmt.Errorf("%w: user %s is not belongs to list %s", myerr.ErrForbidden, userID, l.ID)
 	}
 
 	if role > l.Members[idx].Role {
-		return fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
+		return NewZeroMember(), fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
 	}
 
-	return nil
+	return l.Members[idx], nil
 }
 
 func (l ProductList) Clone() ProductList {
@@ -87,4 +99,36 @@ func (l ProductList) Clone() ProductList {
 	list.States = slices.Clone(l.States)
 
 	return list
+}
+
+type ProductsAddedChange struct {
+	Products []ProductState `json:"products"`
+}
+
+type ProductsRemovedChange struct {
+	IDs []id.ID[product.Product] `json:"ids"`
+}
+
+type ListOptionsChange struct {
+	NewOptions ListOptions `json:"new_options"`
+}
+
+type ListDeletedChange struct{}
+
+type MembersAddedChange struct {
+	NewMembers []Member `json:"new_members"`
+}
+
+type MembersDeletedChange struct {
+	UserIDs []id.ID[user.User] `json:"user_ids"`
+}
+
+type ListReorderChange struct {
+	NewOrder map[uint64]id.ID[product.Product] `json:"new_order"`
+}
+
+type Event struct {
+	ListID id.ID[ProductList] `json:"list_id"`
+	Member *Member            `json:"member"`
+	Change any                `json:"change"`
 }

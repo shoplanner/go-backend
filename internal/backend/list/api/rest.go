@@ -30,8 +30,8 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logg
 		service:     service,
 	}
 
-	r.POST("", h.CreateList)
-
+	group.POST("", h.CreateList)
+	group.GET("", h.Get)
 	group.GET("/:id", h.GetByListID)
 	group.DELETE("/:id", h.Delete)
 	group.POST("/:id/products", h.AddProducts)

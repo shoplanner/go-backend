@@ -3,12 +3,6 @@ package repo
 import (
 	"context"
 	"fmt"
-	"go-backend/internal/backend/list"
-	"go-backend/internal/backend/user"
-	"go-backend/internal/backend/user/repo"
-	"go-backend/pkg/date"
-	"go-backend/pkg/god"
-	"go-backend/pkg/id"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +10,13 @@ import (
 	"github.com/samber/mo"
 	"gorm.io/gorm"
 
+	"go-backend/internal/backend/list"
 	productRepo "go-backend/internal/backend/product/repo"
+	"go-backend/internal/backend/user"
+	"go-backend/internal/backend/user/repo"
+	"go-backend/pkg/date"
+	"go-backend/pkg/god"
+	"go-backend/pkg/id"
 )
 
 type ProductListState struct {
@@ -83,7 +83,7 @@ func (r *Repo) GetListMetaByUserID(ctx context.Context, userID id.ID[user.User])
 	return lo.Map(lists, func(item ProductList, _ int) list.ProductList { return entityToModel(item) }), nil
 }
 
-func (r *Repo) GetListByID(ctx context.Context, listID id.ID[list.ProductList]) (list.ProductList, error) {
+func (r *Repo) GetByListID(ctx context.Context, listID id.ID[list.ProductList]) (list.ProductList, error) {
 	entity := &ProductList{ID: listID.String()} //nolint:exhaustruct
 
 	err := r.db.WithContext(ctx).
@@ -169,6 +169,41 @@ func (r *Repo) GetAndUpdate(
 	}
 
 	return model, nil
+}
+
+func (r *Repo) GetAndDeleteList(
+	ctx context.Context,
+	listID id.ID[list.ProductList],
+	validateFunc func(list.ProductList) error,
+) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var entity list.ProductList
+
+		err := tx.WithContext(ctx).
+			Preload("Members").
+			Preload("States").
+			Preload("States.Product.Category").
+			Find(&entity).Error
+		if err != nil {
+			return fmt.Errorf("can't select product list %s: %w", listID, err)
+		}
+
+		if err = validateFunc(entity); err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Delete(list.ProductList{ID: listID}).Error
+		if err != nil {
+			return fmt.Errorf("can't delete product list %s: %w", listID, err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return nil
 }
 
 func entityToModel(entity ProductList) list.ProductList {

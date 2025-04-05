@@ -2,13 +2,14 @@ package rerr
 
 import (
 	"errors"
-	"go-backend/pkg/id"
-	"go-backend/pkg/myerr"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+
+	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 func ResponseMiddleware(c *gin.Context) {
@@ -54,7 +55,7 @@ func PathID[T any](ctx *gin.Context) (id.ID[T], bool) {
 	uuidID, err := uuid.Parse(rawID)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id must be valid UUID")
-		return id.ID[T]{}, false
+		return id.ID[T]{UUID: uuid.Nil}, false
 	}
 
 	return id.ID[T]{UUID: uuidID}, true
@@ -66,7 +67,7 @@ func QueryID[T any](ctx *gin.Context, name string) (id.ID[T], bool) {
 	uuidID, err := uuid.Parse(rawID)
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "%s must be valid UUID", name)
-		return id.ID[T]{}, false
+		return id.ID[T]{UUID: uuid.Nil}, false
 	}
 
 	return id.ID[T]{UUID: uuidID}, true
