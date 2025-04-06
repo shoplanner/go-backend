@@ -7,6 +7,8 @@
 package auth
 
 import (
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -89,4 +91,77 @@ func (x *TokenStatus) UnmarshalText(text []byte) error {
 	}
 	*x = tmp
 	return nil
+}
+
+var errTokenStatusNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *TokenStatus) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = TokenStatus(0)
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case int64:
+		*x = TokenStatus(v)
+	case string:
+		*x, err = ParseTokenStatus(v)
+	case []byte:
+		*x, err = ParseTokenStatus(string(v))
+	case TokenStatus:
+		*x = v
+	case int:
+		*x = TokenStatus(v)
+	case *TokenStatus:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = *v
+	case uint:
+		*x = TokenStatus(v)
+	case uint64:
+		*x = TokenStatus(v)
+	case *int:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = TokenStatus(*v)
+	case *int64:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = TokenStatus(*v)
+	case float64: // json marshals everything as a float64 if it's a number
+		*x = TokenStatus(v)
+	case *float64: // json marshals everything as a float64 if it's a number
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = TokenStatus(*v)
+	case *uint:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = TokenStatus(*v)
+	case *uint64:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x = TokenStatus(*v)
+	case *string:
+		if v == nil {
+			return errTokenStatusNilPtr
+		}
+		*x, err = ParseTokenStatus(*v)
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x TokenStatus) Value() (driver.Value, error) {
+	return x.String(), nil
 }

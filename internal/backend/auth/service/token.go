@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 
 	"go-backend/internal/backend/auth"
@@ -148,8 +147,6 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 		return opts, fmt.Errorf("decoding access token failed: %w", err)
 	}
 
-	log.Info().Any("opts", opts).Send()
-
 	tokenID, state, err := s.accessRepo.GetByID(ctx, opts.ID)
 	if err != nil {
 		return opts, fmt.Errorf("can't get full access token from storage: %w", err)
@@ -157,8 +154,6 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 	if state.Status == auth.TokenStatusRevoked {
 		return opts, fmt.Errorf("%w: token %s already revoked", myerr.ErrForbidden, tokenID.ID)
 	}
-
-	fmt.Println(time.Now().UTC().Compare(opts.Expires.UTC()))
 
 	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
 		return opts, fmt.Errorf("%w: access token", auth.ErrTokenExpired)

@@ -7,6 +7,8 @@
 package favorite
 
 import (
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -89,6 +91,79 @@ func (x *ListType) UnmarshalText(text []byte) error {
 	}
 	*x = tmp
 	return nil
+}
+
+var errListTypeNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *ListType) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = ListType(0)
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case int64:
+		*x = ListType(v)
+	case string:
+		*x, err = ParseListType(v)
+	case []byte:
+		*x, err = ParseListType(string(v))
+	case ListType:
+		*x = v
+	case int:
+		*x = ListType(v)
+	case *ListType:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = *v
+	case uint:
+		*x = ListType(v)
+	case uint64:
+		*x = ListType(v)
+	case *int:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = ListType(*v)
+	case *int64:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = ListType(*v)
+	case float64: // json marshals everything as a float64 if it's a number
+		*x = ListType(v)
+	case *float64: // json marshals everything as a float64 if it's a number
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = ListType(*v)
+	case *uint:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = ListType(*v)
+	case *uint64:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x = ListType(*v)
+	case *string:
+		if v == nil {
+			return errListTypeNilPtr
+		}
+		*x, err = ParseListType(*v)
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x ListType) Value() (driver.Value, error) {
+	return x.String(), nil
 }
 
 const (
@@ -181,4 +256,77 @@ func (x *MemberType) UnmarshalText(text []byte) error {
 	}
 	*x = tmp
 	return nil
+}
+
+var errMemberTypeNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *MemberType) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = MemberType(0)
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case int64:
+		*x = MemberType(v)
+	case string:
+		*x, err = ParseMemberType(v)
+	case []byte:
+		*x, err = ParseMemberType(string(v))
+	case MemberType:
+		*x = v
+	case int:
+		*x = MemberType(v)
+	case *MemberType:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = *v
+	case uint:
+		*x = MemberType(v)
+	case uint64:
+		*x = MemberType(v)
+	case *int:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = MemberType(*v)
+	case *int64:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = MemberType(*v)
+	case float64: // json marshals everything as a float64 if it's a number
+		*x = MemberType(v)
+	case *float64: // json marshals everything as a float64 if it's a number
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = MemberType(*v)
+	case *uint:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = MemberType(*v)
+	case *uint64:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x = MemberType(*v)
+	case *string:
+		if v == nil {
+			return errMemberTypeNilPtr
+		}
+		*x, err = ParseMemberType(*v)
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x MemberType) Value() (driver.Value, error) {
+	return x.String(), nil
 }

@@ -5,7 +5,8 @@ env:
     sh: pwd
   SQLC_HELPER:
     sh: python -c "import os; print(os.path.join(os.getcwd(), \"tools\", \"sqlc_helper.py\"), end=\"\")"
-  GOENUM: go tool github.com/abice/go-enum --marshal --names --values -f $GOFILE.enum.g.go
+  GOENUM:
+    sh: python -c "import os; print(os.path.join(os.getcwd(), \"tools\", \"goenum.py\"))"
 
 tasks:
   generate:

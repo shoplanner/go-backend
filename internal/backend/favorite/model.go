@@ -11,7 +11,7 @@ import (
 	"go-backend/pkg/myerr"
 )
 
-//go:generate go tool github.com/abice/go-enum --marshal --names --values
+//go:generate python $GOENUM
 
 func ErrUserNotMember(listID id.ID[List], userID id.ID[user.User]) error {
 	return fmt.Errorf(

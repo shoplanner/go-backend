@@ -32,44 +32,20 @@ definitions:
       password:
         type: string
     type: object
-  list.ExecStatus:
-    enum:
-    - 1
-    - 2
-    - 3
-    type: integer
-    x-enum-varnames:
-    - ExecStatusPlanning
-    - ExecStatusProcessing
-    - ExecStatusArchived
   list.ListOptions:
     properties:
       status:
-        $ref: '#/definitions/list.ExecStatus'
+        type: string
       title:
         type: string
     type: object
   list.MemberOptions:
     properties:
       type:
-        $ref: '#/definitions/list.MemberType'
+        type: string
       user_id:
         type: string
     type: object
-  list.MemberType:
-    enum:
-    - 1
-    - 2
-    - 3
-    - 4
-    - 5
-    type: integer
-    x-enum-varnames:
-    - MemberTypeOwner
-    - MemberTypeAdmin
-    - MemberTypeEditor
-    - MemberTypeExecuting
-    - MemberTypeViewer
   list.ProductStateOptions:
     properties:
       count:
@@ -79,20 +55,8 @@ definitions:
         type: number
         x-nullable: true
       status:
-        $ref: '#/definitions/list.StateStatus'
+        type: string
     type: object
-  list.StateStatus:
-    enum:
-    - 1
-    - 2
-    - 3
-    - 4
-    type: integer
-    x-enum-varnames:
-    - StateStatusWaiting
-    - StateStatusMissing
-    - StateStatusTaken
-    - StateStatusReplaced
   product.Options:
     properties:
       category:
@@ -361,7 +325,33 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: delete members from product list
+      tags:
+      - ProductList
+    post:
+      operationId: product-list-add-members
+      parameters:
+      - description: users to add
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/list.MemberOptions'
+          type: array
+      - description: id of product list
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: add viewers to product list
       tags:
       - ProductList
   /lists/{id}/products:
@@ -383,7 +373,7 @@ paths:
           type: array
       responses: {}
       security:
-      - ApiAuthKey: []
+      - ApiKeyAuth: []
       summary: delete products from product list
       tags:
       - ProductList
@@ -408,6 +398,8 @@ paths:
       produces:
       - application/json
       responses: {}
+      security:
+      - ApiKeyAuth: []
       summary: add new products to product list
       tags:
       - ProductList

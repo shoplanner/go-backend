@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,12 +32,13 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logg
 	}
 
 	group.POST("", h.CreateList)
-	group.GET("", h.Get)
+	group.GET("", h.GetByUserID)
 	group.GET("/:id", h.GetByListID)
 	group.DELETE("/:id", h.Delete)
 	group.POST("/:id/products", h.AddProducts)
 	group.DELETE("/:id/products", h.DeleteProducts)
 	group.POST("/:id/members", h.AddViewerList)
+	group.DELETE("/:id/members", h.DeleteViewerList)
 	group.PUT("/:id", h.Update)
 }
 
@@ -50,8 +52,8 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logg
 // @Security	ApiKeyAuth
 func (h *Handler) CreateList(ctx *gin.Context) {
 	var opts list.ListOptions
-	if err := ctx.BindJSON(&opts); err != nil {
-		ctx.String(http.StatusBadRequest, "can't decode request")
+
+	if ok := h.Decode(ctx, &opts); !ok {
 		return
 	}
 
@@ -92,7 +94,7 @@ func (h *Handler) GetByListID(ctx *gin.Context) {
 // @Produce json
 // @Router /lists [get]
 // @Security	ApiKeyAuth
-func (h *Handler) Get(ctx *gin.Context) {
+func (h *Handler) GetByUserID(ctx *gin.Context) {
 	models, err := h.service.GetByUserID(ctx, api.GetUserID(ctx))
 	if err != nil {
 		h.HandleError(ctx, err)
@@ -157,7 +159,8 @@ func (h *Handler) Update(ctx *gin.Context) {
 // @Param body body []list.MemberOptions true "users to add"
 // @Param id path string true "id of product list"
 // @Produce json
-// @Securty ApiAuthKey
+// @Router /lists/{id}/members [post]
+// @Security ApiKeyAuth
 func (h *Handler) AddViewerList(ctx *gin.Context) {
 	var members []list.MemberOptions
 
@@ -166,9 +169,11 @@ func (h *Handler) AddViewerList(ctx *gin.Context) {
 		return
 	}
 
-	if ok = h.Decode(ctx, &members); ok {
+	if ok = h.Decode(ctx, &members); !ok {
 		return
 	}
+
+	fmt.Println(members)
 
 	model, err := h.service.AppendMembers(ctx, listID, api.GetUserID(ctx), members)
 	if err != nil {
@@ -187,7 +192,7 @@ func (h *Handler) AddViewerList(ctx *gin.Context) {
 // @Produce json
 // @Accept json
 // @Router /lists/{id}/members [delete]
-// @Securty ApiAuthKey
+// @Security ApiKeyAuth
 func (h *Handler) DeleteViewerList(c *gin.Context) {
 	var ids []id.ID[user.User]
 	listID, ok := rerr.PathID[list.ProductList](c)
@@ -216,12 +221,16 @@ func (h *Handler) DeleteViewerList(c *gin.Context) {
 // @Produce json
 // @Accept json
 // @Router /lists/{id}/products [post]
-// @Securty ApiAuthKey
+// @Security	ApiKeyAuth
 func (h *Handler) AddProducts(ctx *gin.Context) {
 	var opts map[id.ID[product.Product]]list.ProductStateOptions
 
 	listID, ok := rerr.PathID[list.ProductList](ctx)
 	if !ok {
+		return
+	}
+
+	if ok = h.Decode(ctx, &opts); !ok {
 		return
 	}
 
@@ -240,7 +249,7 @@ func (h *Handler) AddProducts(ctx *gin.Context) {
 // @Param id path string true "product list id"
 // @Param body body []string true "ids of deleting products"
 // @Router /lists/{id}/products [delete]
-// @Security ApiAuthKey
+// @Security ApiKeyAuth
 func (h *Handler) DeleteProducts(ctx *gin.Context) {
 	var toDelete []id.ID[product.Product]
 
@@ -260,4 +269,22 @@ func (h *Handler) DeleteProducts(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, model)
+}
+
+// @Summary change order of products in product list
+// @ID product-list-reorder-states
+// @Tags ProductList
+// @Param id path string true "product list id"
+// @Param body body []string true "ids of products in new order"
+// @Router /lists/{id}/reorder
+// @Security ApiKeyAuth
+func (h *Handler) ReorderState(ctx *gin.Context) {
+	var ids []id.ID[product.Product]
+
+	listID, ok := rerr.PathID[list.ProductList](ctx)
+	if !ok {
+		return
+	}
+
+	err := h.service.ReoderStates(ctx, listID, ids)
 }

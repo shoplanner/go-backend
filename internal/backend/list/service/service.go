@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 
@@ -15,6 +17,7 @@ import (
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
+	"go-backend/pkg/deepcopy"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 )
@@ -38,14 +41,19 @@ type Service struct {
 	channels     map[providerID]*eventProvider
 	channelsLock sync.RWMutex
 	repo         repo
+	log          zerolog.Logger
 }
 
-func NewService(repo repo) *Service {
+func NewService(repo repo, log zerolog.Logger) *Service {
 	return &Service{
+		log:          log.With().Str("component", "product list service").Logger(),
 		repo:         repo,
 		channels:     map[providerID]*eventProvider{},
 		channelsLock: sync.RWMutex{},
 	}
+}
+
+func (s *Service) ReoderStates(ctx *gin.Context, listID id.ID[list.ProductList], ids []id.ID[product.Product]) any {
 }
 
 func (s *Service) Create(
@@ -106,12 +114,12 @@ func (s *Service) Update(
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		newList := oldList.Clone()
+		newList := deepcopy.MustCopy(oldList)
 
 		newList.ListOptions = options
 
 		if err = s.validate(newList); err != nil {
-			return list.ProductList{}, err
+			return oldList, err
 		}
 
 		return newList, nil
@@ -120,7 +128,7 @@ func (s *Service) Update(
 		return model, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.ListOptionsChange{
+	s.sendUpdateEvent(listID, member, list.EventTypeOptsUpdated, list.ListOptionsChange{
 		NewOptions: options,
 	})
 
@@ -139,7 +147,7 @@ func (s *Service) DeleteList(ctx context.Context, userID id.ID[user.User], listI
 		return fmt.Errorf("can't delete product list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.ListDeletedChange{})
+	s.sendUpdateEvent(listID, member, list.EventTypeDeleted, list.ListDeletedChange{})
 
 	return nil
 }
@@ -199,19 +207,21 @@ func (s *Service) AppendMembers(
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		oldList.Members = append(oldList.Members, newMembers...)
+		newList := deepcopy.MustCopy(oldList)
 
-		if err = s.validate(oldList); err != nil {
+		newList.Members = append(newList.Members, newMembers...)
+
+		if err = s.validate(newList); err != nil {
 			return oldList, err
 		}
 
-		return oldList, nil
+		return newList, nil
 	})
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.MembersAddedChange{
+	s.sendUpdateEvent(listID, member, list.EventTypeMembersAdded, list.MembersAddedChange{
 		NewMembers: newMembers,
 	})
 
@@ -235,7 +245,7 @@ func (s *Service) DeleteMembers(
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		newList := oldList.Clone()
+		newList := deepcopy.MustCopy(oldList)
 
 		currentMembers := lo.SliceToMap(
 			newList.Members,
@@ -262,7 +272,7 @@ func (s *Service) DeleteMembers(
 		return model, fmt.Errorf("can't delete members from list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.MembersDeletedChange{
+	s.sendUpdateEvent(listID, member, list.EventTypeMembersRemoved, list.MembersDeletedChange{
 		UserIDs: toDelete,
 	})
 
@@ -307,9 +317,11 @@ func (s *Service) AppendProducts(
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		newList := oldList.Clone()
+		newList := deepcopy.MustCopy(oldList)
 
 		newList.States = append(newList.States, newStates...)
+
+		fmt.Println("added products", newList.States)
 
 		if err = s.validate(oldList); err != nil {
 			return oldList, err
@@ -321,7 +333,7 @@ func (s *Service) AppendProducts(
 		return list.ProductList{}, fmt.Errorf("can't append products: %w", err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.ProductsAddedChange{Products: newStates})
+	s.sendUpdateEvent(listID, member, list.EventTypeProductsAdded, list.ProductsAddedChange{Products: newStates})
 
 	return model, nil
 }
@@ -343,7 +355,7 @@ func (s *Service) DeleteProducts(
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
 
-		newList := oldList.Clone()
+		newList := deepcopy.MustCopy(oldList)
 
 		currentStates := lo.SliceToMap(
 			newList.States,
@@ -372,7 +384,7 @@ func (s *Service) DeleteProducts(
 		return list.ProductList{}, fmt.Errorf("can't delete products from list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.ProductsRemovedChange{
+	s.sendUpdateEvent(listID, member, list.EventTypeProductsRemoved, list.ProductsRemovedChange{
 		IDs: toDelete,
 	})
 

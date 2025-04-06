@@ -343,7 +343,49 @@ const docTemplate = `{
             }
         },
         "/lists/{id}/members": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "add viewers to product list",
+                "operationId": "product-list-add-members",
+                "parameters": [
+                    {
+                        "description": "users to add",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/list.MemberOptions"
+                            }
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "id of product list",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            },
             "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -381,6 +423,11 @@ const docTemplate = `{
         },
         "/lists/{id}/products": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -418,7 +465,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiAuthKey": []
+                        "ApiKeyAuth": []
                     }
                 ],
                 "tags": [
@@ -861,24 +908,11 @@ const docTemplate = `{
                 }
             }
         },
-        "list.ExecStatus": {
-            "type": "integer",
-            "enum": [
-                1,
-                2,
-                3
-            ],
-            "x-enum-varnames": [
-                "ExecStatusPlanning",
-                "ExecStatusProcessing",
-                "ExecStatusArchived"
-            ]
-        },
         "list.ListOptions": {
             "type": "object",
             "properties": {
                 "status": {
-                    "$ref": "#/definitions/list.ExecStatus"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -889,29 +923,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "type": {
-                    "$ref": "#/definitions/list.MemberType"
+                    "type": "string"
                 },
                 "user_id": {
                     "type": "string"
                 }
             }
-        },
-        "list.MemberType": {
-            "type": "integer",
-            "enum": [
-                1,
-                2,
-                3,
-                4,
-                5
-            ],
-            "x-enum-varnames": [
-                "MemberTypeOwner",
-                "MemberTypeAdmin",
-                "MemberTypeEditor",
-                "MemberTypeExecuting",
-                "MemberTypeViewer"
-            ]
         },
         "list.ProductStateOptions": {
             "type": "object",
@@ -925,24 +942,9 @@ const docTemplate = `{
                     "x-nullable": true
                 },
                 "status": {
-                    "$ref": "#/definitions/list.StateStatus"
+                    "type": "string"
                 }
             }
-        },
-        "list.StateStatus": {
-            "type": "integer",
-            "enum": [
-                1,
-                2,
-                3,
-                4
-            ],
-            "x-enum-varnames": [
-                "StateStatusWaiting",
-                "StateStatusMissing",
-                "StateStatusTaken",
-                "StateStatusReplaced"
-            ]
         },
         "product.Options": {
             "type": "object",

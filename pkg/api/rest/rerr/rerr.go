@@ -30,6 +30,8 @@ func NewBaseHandler(log zerolog.Logger) BaseHandler {
 }
 
 func (h BaseHandler) HandleError(c *gin.Context, err error) {
+	h.log.Err(err).Str("method", c.Request.Method).Str("endpoint", c.Request.RequestURI).Msg("request failed")
+
 	switch {
 	case errors.Is(err, myerr.ErrInvalidArgument):
 		c.String(http.StatusBadRequest, err.Error())

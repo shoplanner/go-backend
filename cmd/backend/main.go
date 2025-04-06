@@ -210,7 +210,7 @@ func main() {
 	shopMapService := shopMapService.NewService(userService, shopMapRepo)
 	productService := productService.NewService(productRepo)
 	favoriteService := favoritesService.NewService(favoritesRepo, userService)
-	listService := listService.NewService(listRepo)
+	listService := listService.NewService(listRepo, parentLogger)
 
 	// API
 

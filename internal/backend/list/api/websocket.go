@@ -41,7 +41,7 @@ func RegisterWebSocket(r *gin.RouterGroup, listService listService, log zerolog.
 		EnableCompression: false,
 	}}
 
-	r.GET("/list/id/:id/ws", w.Listen)
+	r.GET("/lists/:id/ws", w.Listen)
 }
 
 func (s *WebSocket) Listen(ctx *gin.Context) {
@@ -75,9 +75,12 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 		return nil
 	})
 
+	s.log.Info().Ctx(ctx).Stringer("user_id", userID).Stringer("list_id", listID).Msg("start listening")
+
 	for {
 		select {
 		case event, open := <-eventChannel:
+			s.log.Debug().Ctx(ctx).Any("event", event).Stringer("user_id", userID).Stringer("list_id", listID).Msg("got event")
 			if !open {
 				return
 			}

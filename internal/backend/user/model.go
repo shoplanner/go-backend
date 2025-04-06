@@ -7,7 +7,7 @@ import (
 	"go-backend/pkg/id"
 )
 
-//go:generate go tool github.com/abice/go-enum --marshal --names --values
+//go:generate python $GOENUM
 
 // ENUM(admin=1, user)
 type Role int32

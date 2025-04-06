@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"go-backend/internal/backend/list"
+	"go-backend/internal/backend/product"
 	productRepo "go-backend/internal/backend/product/repo"
 	"go-backend/internal/backend/user"
 	"go-backend/internal/backend/user/repo"
@@ -29,26 +31,27 @@ type ProductListState struct {
 	ListID    string    `gorm:"size:36;notNull"`
 	CreatedAt time.Time `gorm:"notNull"`
 	UpdatedAt time.Time `gorm:"notNull"`
+	Index     int64     `gorm:"notNull"`
 }
 
 type ProductListMember struct {
 	ID         string    `gorm:"primaryKey;size:36;notNull"`
-	UserID     string    `gorm:"size:36;notNull"`
+	UserID     string    `gorm:"size:36;notNull;uniqueIndex:idx_list_user"`
 	User       repo.User `gorm:"references:ID"`
-	ListID     string    `gorm:"size:36;notNull"`
+	ListID     string    `gorm:"size:36;notNull;uniqueIndex:idx_list_user"`
 	CreatedAt  time.Time `gorm:"notNull"`
 	UpdatedAt  time.Time `gorm:"notNull"`
 	MemberType int32     `gorm:"notNull"`
 }
 
 type ProductList struct {
-	ID        string    `gorm:"primaryKey;size:36;notNull"`
-	Status    int32     `gorm:"notNull"`
-	UpdatedAt time.Time `gorm:"notNull"`
-	CreatedAt time.Time `gorm:"notNull"`
-	Title     string    `gorm:"notNull,size:255"`
-	Members   []ProductListMember
-	States    []ProductListState
+	ID        string              `gorm:"primaryKey;size:36;notNull"`
+	Status    int32               `gorm:"notNull"`
+	UpdatedAt time.Time           `gorm:"notNull"`
+	CreatedAt time.Time           `gorm:"notNull"`
+	Title     string              `gorm:"notNull,size:255"`
+	Members   []ProductListMember `gorm:"foreignKey:ListID"`
+	States    []ProductListState  `gorm:"foreignKey:ListID"`
 }
 
 type Repo struct {
@@ -67,13 +70,18 @@ func NewRepo(ctx context.Context, db *gorm.DB) (*Repo, error) {
 func (r *Repo) GetListMetaByUserID(ctx context.Context, userID id.ID[user.User]) ([]list.ProductList, error) {
 	var relatedListIDs []string
 	var lists []ProductList
-	err := r.db.WithContext(ctx).
-		Where(&ProductListMember{UserID: userID.String()}).Pluck("list_id", &relatedListIDs).Error //nolint:exhaustruct
+
+	//nolint:exhaustruct
+	err := r.db.WithContext(ctx).Model(&ProductListMember{}).
+		Where(&ProductListMember{UserID: userID.String()}).
+		Pluck("list_id", &relatedListIDs).Error
 	if err != nil {
 		return nil, fmt.Errorf("can't find ids of lists related to user %s: %w", userID, err)
 	}
 
 	err = r.db.WithContext(ctx).
+		Preload("Members").
+		Preload("Members.User").
 		Where("id in ?", relatedListIDs).
 		Find(&lists).Error
 	if err != nil {
@@ -88,6 +96,7 @@ func (r *Repo) GetByListID(ctx context.Context, listID id.ID[list.ProductList]) 
 
 	err := r.db.WithContext(ctx).
 		Preload("Members").
+		Preload("Members.User").
 		Preload("States").
 		Preload("States.Product.Category").
 		Find(&entity).Error
@@ -122,6 +131,7 @@ func (r *Repo) GetAndUpdate(
 
 		err = tx.WithContext(ctx).
 			Preload("Members").
+			Preload("Members.User").
 			Preload("States").
 			Preload("States.Product.Category").
 			Find(&entity).Error
@@ -136,28 +146,17 @@ func (r *Repo) GetAndUpdate(
 		entity = modelToEntity(model)
 		query := ProductList{ID: listID.String()} //nolint:exhaustruct
 
-		err = tx.WithContext(ctx).
-			Model(&query).
-			Association("Members").
-			Unscoped().
-			Replace(entity.Members)
+		err = tx.WithContext(ctx).Model(&query).Association("Members").Unscoped().Replace(entity.Members)
 		if err != nil {
 			return fmt.Errorf("can't update members of list %s: %w", listID, err)
 		}
 
-		err = tx.WithContext(ctx).
-			Model(&query).
-			Association("States").
-			Unscoped().
-			Replace(entity.States)
+		err = tx.WithContext(ctx).Model(&query).Association("States").Unscoped().Replace(entity.States)
 		if err != nil {
 			return fmt.Errorf("can't update states of list %s: %w", listID, err)
 		}
 
-		err = tx.WithContext(ctx).
-			Model(&query).
-			Updates(&entity).
-			Error
+		err = tx.WithContext(ctx).Model(&query).Updates(&entity).Error
 		if err != nil {
 			return fmt.Errorf("can't update product list %s: %w", listID, err)
 		}
@@ -192,6 +191,7 @@ func (r *Repo) GetAndDeleteList(
 			return err
 		}
 
+		//nolint:exhaustruct
 		err = tx.WithContext(ctx).Delete(list.ProductList{ID: listID}).Error
 		if err != nil {
 			return fmt.Errorf("can't delete product list %s: %w", listID, err)
@@ -206,11 +206,50 @@ func (r *Repo) GetAndDeleteList(
 	return nil
 }
 
+func (r *Repo) ApplyOrder(ctx context.Context, listID id.ID[list.ProductList], ids []id.ID[product.Product]) error {
+	var builder strings.Builder
+	builder.WriteString("UPDATE product_list_states SET index = CASE product_id\n")
+
+	for range ids {
+		builder.WriteString("WHEN ? THEN ?")
+	}
+
+	builder.WriteString("WHERE product_id in (")
+	for i := range ids {
+		if i != len(ids)-1 {
+			builder.WriteString("?, ")
+		} else {
+			builder.WriteString("?)")
+		}
+	}
+	builder.WriteString(" AND list_id = ?")
+
+	args := make([]any, 0, 3*len(ids)+1)
+	for i, id := range ids {
+		args = append(args, id.String(), i)
+	}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+
+	args = append(args, listID)
+
+	err := r.db.WithContext(ctx).Exec(builder.String(), args...).Error
+	if err != nil {
+		return fmt.Errorf("can't apply order to DoltDB: %w", err)
+	}
+
+	return nil
+}
+
 func entityToModel(entity ProductList) list.ProductList {
+	states := make([]list.ProductState, len(entity.States))
+	for _, state := range entity.States {
+		states[state.Index] = stateToModel(state)
+	}
+
 	return list.ProductList{
-		States: lo.Map(entity.States, func(item ProductListState, _ int) list.ProductState {
-			return stateToModel(item)
-		}),
+		States: states,
 		Members: lo.Map(entity.Members, func(item ProductListMember, _ int) list.Member {
 			return memberToModel(item)
 		}),
@@ -227,7 +266,7 @@ func entityToModel(entity ProductList) list.ProductList {
 func memberToModel(entity ProductListMember) list.Member {
 	return list.Member{
 		MemberOptions: list.MemberOptions{
-			UserID: id.ID[user.User]{UUID: god.Believe(uuid.Parse(entity.ID))},
+			UserID: id.ID[user.User]{UUID: god.Believe(uuid.Parse(entity.UserID))},
 			Role:   list.MemberType(entity.MemberType),
 		},
 		UserName:  user.Login(entity.User.Login),
@@ -253,14 +292,14 @@ func modelToEntity(model list.ProductList) ProductList {
 	return ProductList{
 		ID:        model.ID.String(),
 		Status:    int32(model.Status),
-		UpdatedAt: model.CreatedAt.Time,
-		CreatedAt: model.UpdatedAt.Time,
+		UpdatedAt: model.UpdatedAt.Time,
+		CreatedAt: model.CreatedAt.Time,
 		Title:     model.Title,
 		Members: lo.Map(model.Members, func(item list.Member, _ int) ProductListMember {
 			return memberToEntity(model.ID, item)
 		}),
-		States: lo.Map(model.States, func(item list.ProductState, _ int) ProductListState {
-			return stateToEntity(model.ID, item)
+		States: lo.Map(model.States, func(item list.ProductState, index int) ProductListState {
+			return stateToEntity(model.ID, item, int64(index))
 		}),
 	}
 }
@@ -277,7 +316,7 @@ func memberToEntity(listID id.ID[list.ProductList], model list.Member) ProductLi
 	}
 }
 
-func stateToEntity(listID id.ID[list.ProductList], model list.ProductState) ProductListState {
+func stateToEntity(listID id.ID[list.ProductList], model list.ProductState, index int64) ProductListState {
 	return ProductListState{
 		ID:        uuid.NewString(),
 		ProductID: model.Product.ID.String(),
@@ -288,5 +327,6 @@ func stateToEntity(listID id.ID[list.ProductList], model list.ProductState) Prod
 		ListID:    listID.String(),
 		CreatedAt: model.CreatedAt.Time,
 		UpdatedAt: model.UpdatedAt.Time,
+		Index:     index,
 	}
 }

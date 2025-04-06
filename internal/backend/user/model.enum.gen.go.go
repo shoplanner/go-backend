@@ -7,6 +7,8 @@
 package user
 
 import (
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -89,4 +91,77 @@ func (x *Role) UnmarshalText(text []byte) error {
 	}
 	*x = tmp
 	return nil
+}
+
+var errRoleNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *Role) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = Role(0)
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case int64:
+		*x = Role(v)
+	case string:
+		*x, err = ParseRole(v)
+	case []byte:
+		*x, err = ParseRole(string(v))
+	case Role:
+		*x = v
+	case int:
+		*x = Role(v)
+	case *Role:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = *v
+	case uint:
+		*x = Role(v)
+	case uint64:
+		*x = Role(v)
+	case *int:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = Role(*v)
+	case *int64:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = Role(*v)
+	case float64: // json marshals everything as a float64 if it's a number
+		*x = Role(v)
+	case *float64: // json marshals everything as a float64 if it's a number
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = Role(*v)
+	case *uint:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = Role(*v)
+	case *uint64:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = Role(*v)
+	case *string:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x, err = ParseRole(*v)
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x Role) Value() (driver.Value, error) {
+	return x.String(), nil
 }

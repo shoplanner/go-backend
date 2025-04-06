@@ -15,7 +15,7 @@ import (
 	"go-backend/pkg/myerr"
 )
 
-//go:generate go tool github.com/abice/go-enum --marshal --names --values
+//go:generate python $GOENUM
 
 // ENUM(waiting=1, missing, taken, replaced).
 type StateStatus int
@@ -26,7 +26,7 @@ type ExecStatus int32
 type ProductStateOptions struct {
 	Count     mo.Option[int32] `json:"count" swaggertype:"number" extensions:"x-nullable"`
 	FormIndex mo.Option[int32] `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
-	Status    StateStatus      `json:"status"`
+	Status    StateStatus      `json:"status" swaggertype:"string"`
 }
 
 type ProductState struct {
@@ -42,7 +42,7 @@ type MemberType int32
 
 type MemberOptions struct {
 	UserID id.ID[user.User] `json:"user_id" swaggertype:"string"`
-	Role   MemberType       `json:"type"`
+	Role   MemberType       `json:"type" swaggertype:"string"`
 }
 
 type Member struct {
@@ -62,8 +62,9 @@ func NewZeroMember() Member {
 	}
 }
 
-type ListOptions struct { // nolint:exported // here is another options
-	Status ExecStatus `json:"status"`
+// nolint:exported // here is another options
+type ListOptions struct {
+	Status ExecStatus `json:"status" swaggertype:"string"`
 	Title  string     `json:"title"`
 }
 
@@ -86,19 +87,11 @@ func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member
 		return NewZeroMember(), fmt.Errorf("%w: user %s is not belongs to list %s", myerr.ErrForbidden, userID, l.ID)
 	}
 
-	if role > l.Members[idx].Role {
+	if role < l.Members[idx].Role {
 		return NewZeroMember(), fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
 	}
 
 	return l.Members[idx], nil
-}
-
-func (l ProductList) Clone() ProductList {
-	list := l
-	list.Members = slices.Clone(l.Members)
-	list.States = slices.Clone(l.States)
-
-	return list
 }
 
 type ProductsAddedChange struct {
@@ -127,8 +120,12 @@ type ListReorderChange struct {
 	NewOrder map[uint64]id.ID[product.Product] `json:"new_order"`
 }
 
+// ENUM(full=1,productsAdded,productsRemoved,membersAdded,membersRemoved,optsUpdated,deleted)
+type EventType int32
+
 type Event struct {
 	ListID id.ID[ProductList] `json:"list_id"`
 	Member *Member            `json:"member"`
+	Type   EventType          `json:"type"`
 	Change any                `json:"change"`
 }

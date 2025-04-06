@@ -23,7 +23,7 @@ type eventProvider struct {
 }
 
 func newEventProvider(id providerID) *eventProvider {
-	ch := make(chan list.Event)
+	ch := make(chan list.Event, 1)
 	return &eventProvider{
 		ch: ch,
 		id: id,
@@ -52,20 +52,19 @@ func (s *Service) ListenEvents(
 
 	provider, found := s.channels[id]
 
-	if found {
-		provider = provider
-	} else {
+	if !found {
 		provider = newEventProvider(id)
 		s.channels[id] = provider
 	}
 
-	s.channelsLock.Unlock()
-
 	provider.ch <- list.Event{
 		ListID: listID,
+		Type:   list.EventTypeFull,
 		Member: nil, // no real change here
 		Change: currentList,
 	}
+
+	s.channelsLock.Unlock()
 
 	return provider.ch, nil
 }
@@ -84,6 +83,7 @@ func (s *Service) StopListenEvents(
 
 	_, found := s.channels[id]
 	if found {
+		s.channels[id].close()
 		delete(s.channels, id)
 		return nil
 	}
@@ -91,11 +91,12 @@ func (s *Service) StopListenEvents(
 	return fmt.Errorf("%w: listener %d", myerr.ErrNotFound, id)
 }
 
-func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Member, change any) {
+func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Member, eventType list.EventType, change any) {
 	s.channelsLock.RLock()
 	defer s.channelsLock.RUnlock()
 
 	event := list.Event{
+		Type:   eventType,
 		ListID: listID,
 		Member: &member,
 		Change: change,
