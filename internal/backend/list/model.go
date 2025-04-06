@@ -129,3 +129,7 @@ type Event struct {
 	Type   EventType          `json:"type"`
 	Change any                `json:"change"`
 }
+
+type RoleCheckFunc func([]Member) error
+
+func CheckRole(members []Member) func()

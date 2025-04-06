@@ -22,6 +22,7 @@ import (
 	"go-backend/pkg/myerr"
 )
 
+
 type repo interface {
 	CreateList(context.Context, list.ProductList) error
 	GetByListID(context.Context, id.ID[list.ProductList]) (list.ProductList, error)
@@ -35,6 +36,7 @@ type repo interface {
 		error,
 	)
 	GetAndDeleteList(context.Context, id.ID[list.ProductList], func(list.ProductList) error) error
+	UpdateState(context.Context, RoleCheckFunc, id.ID[list.ProductList], id.ID[product.Product], list.ProductStateOptions) error
 }
 
 type Service struct {
@@ -336,6 +338,15 @@ func (s *Service) AppendProducts(
 	s.sendUpdateEvent(listID, member, list.EventTypeProductsAdded, list.ProductsAddedChange{Products: newStates})
 
 	return model, nil
+}
+
+func (s *Service) UpdateProductState(ctx context.Context,
+	listID id.ID[list.ProductList],
+	userID id.ID[user.User],
+	productID id.ID[product.Product],
+	state list.ProductStateOptions)  error{
+	
+	s.repo.UpdateState(ctx, func(m []list.Member) error {}, id.ID[list.ProductList], id.ID[product.Product], list.ProductStateOptions)
 }
 
 func (s *Service) DeleteProducts(
