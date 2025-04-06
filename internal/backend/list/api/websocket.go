@@ -17,7 +17,7 @@ import (
 
 type listService interface {
 	ListenEvents(context.Context, id.ID[user.User], id.ID[list.ProductList]) (<-chan list.Event, error)
-	StopListen(context.Context, id.ID[user.User], id.ID[list.ProductList]) error
+	StopListenEvents(id.ID[user.User], id.ID[list.ProductList]) error
 }
 
 type WebSocket struct {
@@ -50,6 +50,7 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	userID := api.GetUserID(ctx)
 
 	conn, err := s.config.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
@@ -58,7 +59,7 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 	}
 	defer conn.Close()
 
-	eventChannel, err := s.list.ListenEvents(ctx, api.GetUserID(ctx), listID)
+	eventChannel, err := s.list.ListenEvents(ctx, userID, listID)
 	if err != nil {
 		s.HandleError(ctx, fmt.Errorf("getting event channel failed: %w", err))
 		return
@@ -67,7 +68,7 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 	conn.SetCloseHandler(func(code int, text string) error {
 		s.log.Info().Str("text", text).Int("code", code).Msg("closing updater")
 		close(closeChan)
-		closeErr := s.list.StopListen(ctx, api.GetUserID(ctx), listID)
+		closeErr := s.list.StopListenEvents(userID, listID)
 		if closeErr != nil {
 			s.log.Err(closeErr).Msg("closing event channel failed")
 		}

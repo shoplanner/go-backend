@@ -71,7 +71,6 @@ func (s *Service) ListenEvents(
 }
 
 func (s *Service) StopListenEvents(
-	ctx context.Context,
 	userID id.ID[user.User],
 	listID id.ID[list.ProductList],
 ) error {
@@ -87,9 +86,9 @@ func (s *Service) StopListenEvents(
 	if found {
 		delete(s.channels, id)
 		return nil
-	} else {
-		return fmt.Errorf("%w: listener %d", myerr.ErrNotFound, id)
 	}
+
+	return fmt.Errorf("%w: listener %d", myerr.ErrNotFound, id)
 }
 
 func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Member, change any) {
@@ -102,7 +101,11 @@ func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Me
 		Change: change,
 	}
 
-	for _, provider := range s.channels[listID.String()] {
+	for id, provider := range s.channels {
+		if id.listID != listID {
+			continue
+		}
+
 		provider.ch <- event
 	}
 }
