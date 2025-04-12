@@ -51,7 +51,6 @@ func (s *Service) ListenEvents(
 	id := providerID{userID: userID, listID: listID}
 
 	provider, found := s.channels[id]
-
 	if !found {
 		provider = newEventProvider(id)
 		s.channels[id] = provider

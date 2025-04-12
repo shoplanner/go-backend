@@ -3,16 +3,15 @@ package api
 import (
 	"context"
 	"fmt"
-
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog"
-
 	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 )
 
 type listService interface {
