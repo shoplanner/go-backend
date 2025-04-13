@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	stdLog "log"
@@ -242,9 +243,11 @@ func main() {
 
 	log.Info().Msg("received interrupt signal")
 
-	if err = listener.Close(); err != nil {
+	if err = listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Error().Err(err).Msg("closing listener cause error")
 	}
+
+	log.Info().Msg("server stopped")
 }
 
 func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {

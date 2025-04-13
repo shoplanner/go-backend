@@ -21,4 +21,11 @@ FROM
     users;
 
 -- name: GetByID :one
-SELECT * FROM users WHERE id = ? LIMIT 1;
+SELECT
+    *
+FROM
+    users
+WHERE
+    id = ?
+LIMIT
+    1;

@@ -22,11 +22,11 @@ import (
 	"go-backend/pkg/myerr"
 )
 
-
 type repo interface {
 	CreateList(context.Context, list.ProductList) error
 	GetByListID(context.Context, id.ID[list.ProductList]) (list.ProductList, error)
 	GetListMetaByUserID(context.Context, id.ID[user.User]) ([]list.ProductList, error)
+
 	GetAndUpdate(
 		context.Context,
 		id.ID[list.ProductList],
@@ -35,8 +35,9 @@ type repo interface {
 		list.ProductList,
 		error,
 	)
+
 	GetAndDeleteList(context.Context, id.ID[list.ProductList], func(list.ProductList) error) error
-	UpdateState(context.Context, RoleCheckFunc, id.ID[list.ProductList], id.ID[product.Product], list.ProductStateOptions) error
+	ApplyOrder(context.Context, list.RoleCheckFunc, id.ID[list.ProductList], []id.ID[product.Product]) error
 }
 
 type Service struct {
@@ -55,7 +56,22 @@ func NewService(repo repo, log zerolog.Logger) *Service {
 	}
 }
 
-func (s *Service) ReoderStates(ctx *gin.Context, listID id.ID[list.ProductList], ids []id.ID[product.Product]) any {
+func (s *Service) ReoderStates(
+	ctx *gin.Context,
+	userID id.ID[user.User],
+	listID id.ID[list.ProductList],
+	ids []id.ID[product.Product],
+) error {
+	checkFunc, ch := list.CheckRole(userID, list.MemberTypeEditor)
+	err := s.repo.ApplyOrder(ctx, checkFunc, listID, ids)
+	member := <-ch
+	if err != nil {
+		return fmt.Errorf("failed to apply new order to list %s: %w", listID, err)
+	}
+
+	s.sendUpdateEvent(listID, member, list.EventTypeStatesReordered, ids)
+
+	return nil
 }
 
 func (s *Service) Create(
@@ -344,9 +360,47 @@ func (s *Service) UpdateProductState(ctx context.Context,
 	listID id.ID[list.ProductList],
 	userID id.ID[user.User],
 	productID id.ID[product.Product],
-	state list.ProductStateOptions)  error{
-	
-	s.repo.UpdateState(ctx, func(m []list.Member) error {}, id.ID[list.ProductList], id.ID[product.Product], list.ProductStateOptions)
+	stateOpts list.ProductStateOptions,
+) (
+	list.ProductState,
+	error,
+) {
+	var member list.Member
+	var state list.ProductState
+
+	_, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
+		var err error
+
+		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+			return oldList, fmt.Errorf("checking role failed: %w", err)
+		}
+
+		newList := deepcopy.MustCopy(oldList)
+
+		idx := slices.IndexFunc(newList.States, func(s list.ProductState) bool { return s.Product.ID == productID })
+		if idx == -1 {
+			return oldList, fmt.Errorf("%w: product state with product id: %s", myerr.ErrNotFound, productID)
+		}
+
+		newList.States[idx].ProductStateOptions = stateOpts
+		state = newList.States[idx]
+
+		if err = s.validate(newList); err != nil {
+			return oldList, err
+		}
+
+		return newList, nil
+	})
+	if err != nil {
+		return list.ProductState{}, fmt.Errorf("failed to update product state %s in list %s: %w", productID, listID, err)
+	}
+
+	s.sendUpdateEvent(listID, member, list.EventTypeStateUpdated, list.StateUpdatedChange{
+		ProductID: productID,
+		State:     state,
+	})
+
+	return state, nil
 }
 
 func (s *Service) DeleteProducts(

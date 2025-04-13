@@ -339,6 +339,15 @@ const docTemplate = `{
                 ],
                 "summary": "delete product list by id",
                 "operationId": "product-list-delete-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of product list",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {}
             }
         },
@@ -455,7 +464,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
-                                "$ref": "#/definitions/list.ProductStateOptions"
+                                "$ref": "#/definitions/api.ProductStateOptions"
                             }
                         }
                     }
@@ -483,6 +492,82 @@ const docTemplate = `{
                     },
                     {
                         "description": "ids of deleting products",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/lists/{id}/products/{product_id}": {
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "update single product state in given product list",
+                "operationId": "product-list-update-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "product list id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "product state product id",
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "product state options",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ProductStateOptions"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/lists/{id}/reorder": {
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "change order of products in product list",
+                "operationId": "product-list-reorder-states",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "product list id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ids of products in new order",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -869,6 +954,34 @@ const docTemplate = `{
                 }
             }
         },
+        "api.ProductStateOptions": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "form_idx": {
+                    "type": "integer"
+                },
+                "replacement": {
+                    "type": "object",
+                    "properties": {
+                        "count": {
+                            "type": "integer"
+                        },
+                        "form_idx": {
+                            "type": "integer"
+                        },
+                        "product_id": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "api.RefreshRequest": {
             "type": "object",
             "properties": {
@@ -926,22 +1039,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "list.ProductStateOptions": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "number",
-                    "x-nullable": true
-                },
-                "form_index": {
-                    "type": "number",
-                    "x-nullable": true
-                },
-                "status": {
                     "type": "string"
                 }
             }

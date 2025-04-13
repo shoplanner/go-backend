@@ -7,6 +7,24 @@ definitions:
           type: string
         type: array
     type: object
+  api.ProductStateOptions:
+    properties:
+      count:
+        type: integer
+      form_idx:
+        type: integer
+      replacement:
+        properties:
+          count:
+            type: integer
+          form_idx:
+            type: integer
+          product_id:
+            type: integer
+        type: object
+      status:
+        type: string
+    type: object
   api.RefreshRequest:
     properties:
       refresh_token:
@@ -44,17 +62,6 @@ definitions:
       type:
         type: string
       user_id:
-        type: string
-    type: object
-  list.ProductStateOptions:
-    properties:
-      count:
-        type: number
-        x-nullable: true
-      form_index:
-        type: number
-        x-nullable: true
-      status:
         type: string
     type: object
   product.Options:
@@ -257,6 +264,12 @@ paths:
   /lists/{id}:
     delete:
       operationId: product-list-delete-by-id
+      parameters:
+      - description: id of product list
+        in: path
+        name: id
+        required: true
+        type: string
       responses: {}
       security:
       - ApiKeyAuth: []
@@ -393,7 +406,7 @@ paths:
         required: true
         schema:
           additionalProperties:
-            $ref: '#/definitions/list.ProductStateOptions'
+            $ref: '#/definitions/api.ProductStateOptions'
           type: object
       produces:
       - application/json
@@ -401,6 +414,55 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: add new products to product list
+      tags:
+      - ProductList
+  /lists/{id}/products/{product_id}:
+    patch:
+      operationId: product-list-update-state
+      parameters:
+      - description: product list id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: product state product id
+        in: path
+        name: product_id
+        required: true
+        type: string
+      - description: product state options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.ProductStateOptions'
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: update single product state in given product list
+      tags:
+      - ProductList
+  /lists/{id}/reorder:
+    patch:
+      operationId: product-list-reorder-states
+      parameters:
+      - description: product list id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ids of products in new order
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: change order of products in product list
       tags:
       - ProductList
   /product:

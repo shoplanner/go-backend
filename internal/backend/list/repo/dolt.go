@@ -19,19 +19,24 @@ import (
 	"go-backend/pkg/date"
 	"go-backend/pkg/god"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 type ProductListState struct {
-	ID        string              `gorm:"primaryKey;size:36;notNull"`
-	ProductID string              `gorm:"notNull"`
-	Product   productRepo.Product `gorm:"references:ID"`
-	Count     *int32
-	FormIdx   *int32
-	Status    int       `gorm:"notNull"`
-	ListID    string    `gorm:"size:36;notNull"`
-	CreatedAt time.Time `gorm:"notNull"`
-	UpdatedAt time.Time `gorm:"notNull"`
-	Index     int64     `gorm:"notNull"`
+	ID                   string              `gorm:"primaryKey;size:36;notNull"`
+	ProductID            string              `gorm:"notNull"`
+	Product              productRepo.Product `gorm:"references:ID"`
+	ListID               string              `gorm:"size:36;notNull"`
+	CreatedAt            time.Time           `gorm:"notNull"`
+	UpdatedAt            time.Time           `gorm:"notNull"`
+	Index                int64               `gorm:"notNull"`
+	Count                *int32
+	FormIdx              *int32
+	Status               int `gorm:"notNull"`
+	ReplacementCount     *int32
+	ReplacementFormIdx   *int32
+	ReplacementProduct   *productRepo.Product `gorm:"references:ID"`
+	ReplacementProductID *string
 }
 
 type ProductListMember struct {
@@ -82,6 +87,10 @@ func (r *Repo) GetListMetaByUserID(ctx context.Context, userID id.ID[user.User])
 	err = r.db.WithContext(ctx).
 		Preload("Members").
 		Preload("Members.User").
+		Preload("States").
+		Preload("States.Product.Category").
+		Preload("States.ReplacementProduct").
+		Preload("States.ReplacementProduct.Category").
 		Where("id in ?", relatedListIDs).
 		Find(&lists).Error
 	if err != nil {
@@ -99,6 +108,8 @@ func (r *Repo) GetByListID(ctx context.Context, listID id.ID[list.ProductList]) 
 		Preload("Members.User").
 		Preload("States").
 		Preload("States.Product.Category").
+		Preload("States.ReplacementProduct").
+		Preload("States.ReplacementProduct.Category").
 		Find(&entity).Error
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't select product list %s: %w", listID, err)
@@ -108,7 +119,7 @@ func (r *Repo) GetByListID(ctx context.Context, listID id.ID[list.ProductList]) 
 }
 
 func (r *Repo) CreateList(ctx context.Context, model list.ProductList) error {
-	err := r.db.WithContext(ctx).Create(lo.ToPtr(modelToEntity(model))).Error
+	err := r.db.WithContext(ctx).Create(lo.ToPtr(listToEntity(model))).Error
 	if err != nil {
 		return fmt.Errorf("can't insert new product list %s: %w", model.ID, err)
 	}
@@ -134,6 +145,8 @@ func (r *Repo) GetAndUpdate(
 			Preload("Members.User").
 			Preload("States").
 			Preload("States.Product.Category").
+			Preload("States.ReplacementProduct").
+			Preload("States.ReplacementProduct.Category").
 			Find(&entity).Error
 		if err != nil {
 			return fmt.Errorf("can't select product list %s: %w", listID, err)
@@ -143,7 +156,7 @@ func (r *Repo) GetAndUpdate(
 		if err != nil {
 			return err
 		}
-		entity = modelToEntity(model)
+		entity = listToEntity(model)
 		query := ProductList{ID: listID.String()} //nolint:exhaustruct
 
 		err = tx.WithContext(ctx).Model(&query).Association("Members").Unscoped().Replace(entity.Members)
@@ -182,6 +195,8 @@ func (r *Repo) GetAndDeleteList(
 			Preload("Members").
 			Preload("States").
 			Preload("States.Product.Category").
+			Preload("States.ReplacementProduct").
+			Preload("States.ReplacementProduct.Category").
 			Find(&entity).Error
 		if err != nil {
 			return fmt.Errorf("can't select product list %s: %w", listID, err)
@@ -206,40 +221,89 @@ func (r *Repo) GetAndDeleteList(
 	return nil
 }
 
-func (r *Repo) ApplyOrder(ctx context.Context, listID id.ID[list.ProductList], ids []id.ID[product.Product]) error {
-	var builder strings.Builder
-	builder.WriteString("UPDATE product_list_states SET index = CASE product_id\n")
+func (r *Repo) ApplyOrder(
+	ctx context.Context,
+	validateFunc list.RoleCheckFunc,
+	listID id.ID[list.ProductList],
+	ids []id.ID[product.Product],
+) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		members, err := r.getMembers(ctx, tx, listID)
+		if err != nil {
+			return fmt.Errorf("failed to get product list members: %w", err)
+		}
 
-	for range ids {
-		builder.WriteString("WHEN ? THEN ?")
+		if err = validateFunc(members); err != nil {
+			return err
+		}
+
+		if len(ids) == 0 {
+			return fmt.Errorf("%w: order list is empty", myerr.ErrInvalidArgument)
+		}
+
+		args := make([]any, 0, 3*len(ids)+1)
+		for i, id := range ids {
+			args = append(args, id.String(), i)
+		}
+		for _, id := range ids {
+			args = append(args, id)
+		}
+
+		query := buildApplyOrderQeuery(ids)
+		args = append(args, listID)
+
+		err = tx.WithContext(ctx).Exec(query, args...).Error
+		if err != nil {
+			return fmt.Errorf("can't apply order to DoltDB: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("transaction failed: %w", err)
 	}
 
-	builder.WriteString("WHERE product_id in (")
+	return nil
+}
+
+func buildApplyOrderQeuery(ids []id.ID[product.Product]) string {
+	var builder strings.Builder
+
+	builder.WriteString("UPDATE product_list_states SET `index` = CASE product_id ")
+
+	for range ids {
+		builder.WriteString("WHEN ? THEN ? ")
+	}
+
+	builder.WriteString("END WHERE `product_id` in (")
 	for i := range ids {
 		if i != len(ids)-1 {
 			builder.WriteString("?, ")
 		} else {
-			builder.WriteString("?)")
+			builder.WriteString("?) ")
 		}
 	}
-	builder.WriteString(" AND list_id = ?")
 
-	args := make([]any, 0, 3*len(ids)+1)
-	for i, id := range ids {
-		args = append(args, id.String(), i)
-	}
-	for _, id := range ids {
-		args = append(args, id)
-	}
+	builder.WriteString(" AND `list_id` = ?")
 
-	args = append(args, listID)
+	return builder.String()
+}
 
-	err := r.db.WithContext(ctx).Exec(builder.String(), args...).Error
+func (r *Repo) getMembers(ctx context.Context, tx *gorm.DB, listID id.ID[list.ProductList]) ([]list.Member, error) {
+	var members []ProductListMember
+
+	err := tx.WithContext(ctx).
+		Preload("User").
+		Where(&ProductListMember{ListID: listID.String()}). // nolint:exhaustruct
+		Find(&members).Error
+
 	if err != nil {
-		return fmt.Errorf("can't apply order to DoltDB: %w", err)
+		return nil, fmt.Errorf("failed to query members of list %s: %w", listID, err)
 	}
 
-	return nil
+	return lo.Map(members, func(m ProductListMember, _ int) list.Member {
+		return memberToModel(m)
+	}), nil
 }
 
 func entityToModel(entity ProductList) list.ProductList {
@@ -276,11 +340,22 @@ func memberToModel(entity ProductListMember) list.Member {
 }
 
 func stateToModel(entity ProductListState) list.ProductState {
+	var replacement *list.ProductStateReplacement
+	if entity.ReplacementProductID != nil {
+		replacement = &list.ProductStateReplacement{
+			Count:     mo.PointerToOption(entity.ReplacementCount),
+			FormIndex: mo.PointerToOption(entity.ReplacementFormIdx),
+			ProductID: id.ID[product.Product]{UUID: god.Believe(uuid.Parse(*entity.ReplacementProductID))},
+			Product:   productRepo.EntityToModel(*entity.ReplacementProduct),
+		}
+	}
+
 	return list.ProductState{
 		ProductStateOptions: list.ProductStateOptions{
-			Count:     mo.PointerToOption(entity.Count),
-			FormIndex: mo.PointerToOption(entity.FormIdx),
-			Status:    list.StateStatus(entity.Status),
+			Count:       mo.PointerToOption(entity.Count),
+			FormIndex:   mo.PointerToOption(entity.FormIdx),
+			Status:      list.StateStatus(entity.Status),
+			Replacement: mo.PointerToOption(replacement),
 		},
 		Product:   productRepo.EntityToModel(entity.Product),
 		CreatedAt: date.CreateDate[list.ProductState]{Time: entity.CreatedAt},
@@ -288,7 +363,7 @@ func stateToModel(entity ProductListState) list.ProductState {
 	}
 }
 
-func modelToEntity(model list.ProductList) ProductList {
+func listToEntity(model list.ProductList) ProductList {
 	return ProductList{
 		ID:        model.ID.String(),
 		Status:    int32(model.Status),
@@ -318,15 +393,18 @@ func memberToEntity(listID id.ID[list.ProductList], model list.Member) ProductLi
 
 func stateToEntity(listID id.ID[list.ProductList], model list.ProductState, index int64) ProductListState {
 	return ProductListState{
-		ID:        uuid.NewString(),
-		ProductID: model.Product.ID.String(),
-		Product:   productRepo.Product{ID: model.Product.ID.String()}, //nolint:exhaustruct
-		Count:     model.Count.ToPointer(),
-		FormIdx:   model.FormIndex.ToPointer(),
-		Status:    int(model.Status),
-		ListID:    listID.String(),
-		CreatedAt: model.CreatedAt.Time,
-		UpdatedAt: model.UpdatedAt.Time,
-		Index:     index,
+		ProductID:          model.Product.ID.String(),
+		Product:            productRepo.Product{ID: model.Product.ID.String()}, //nolint:exhaustruct
+		Count:              model.Count.ToPointer(),
+		FormIdx:            model.FormIndex.ToPointer(),
+		Status:             int(model.Status),
+		ListID:             listID.String(),
+		CreatedAt:          model.CreatedAt.Time,
+		UpdatedAt:          model.UpdatedAt.Time,
+		Index:              index,
+		ReplacementCount:   model.Replacement.OrEmpty().Count.ToPointer(),
+		ReplacementFormIdx: model.Replacement.OrEmpty().FormIndex.ToPointer(),
+		ReplacementProductID: lo.If(model.Replacement.IsAbsent(), (*string)(nil)).
+			Else(lo.ToPtr(model.Replacement.OrEmpty().ProductID.String())),
 	}
 }

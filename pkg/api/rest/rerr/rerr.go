@@ -2,6 +2,7 @@ package rerr
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -52,11 +53,15 @@ func (h BaseHandler) HandleError(c *gin.Context, err error) {
 }
 
 func PathID[T any](ctx *gin.Context) (id.ID[T], bool) {
-	rawID := ctx.Param("id")
+	return Path[T](ctx, "id")
+}
+
+func Path[T any](ctx *gin.Context, name string) (id.ID[T], bool) {
+	rawID := ctx.Param(name)
 
 	uuidID, err := uuid.Parse(rawID)
 	if err != nil {
-		ctx.String(http.StatusBadRequest, "id must be valid UUID")
+		ctx.String(http.StatusBadRequest, fmt.Sprintf("%s must be valid UUID", name))
 		return id.ID[T]{UUID: uuid.Nil}, false
 	}
 

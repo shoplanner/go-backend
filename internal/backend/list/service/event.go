@@ -68,6 +68,7 @@ func (s *Service) ListenEvents(
 	return provider.ch, nil
 }
 
+// StopListenEvents close sending events to provided user from provided listID
 func (s *Service) StopListenEvents(
 	userID id.ID[user.User],
 	listID id.ID[list.ProductList],
@@ -90,7 +91,12 @@ func (s *Service) StopListenEvents(
 	return fmt.Errorf("%w: listener %d", myerr.ErrNotFound, id)
 }
 
-func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Member, eventType list.EventType, change any) {
+func (s *Service) sendUpdateEvent(
+	listID id.ID[list.ProductList],
+	member list.Member,
+	eventType list.EventType,
+	change any,
+) {
 	s.channelsLock.RLock()
 	defer s.channelsLock.RUnlock()
 
@@ -100,6 +106,8 @@ func (s *Service) sendUpdateEvent(listID id.ID[list.ProductList], member list.Me
 		Member: &member,
 		Change: change,
 	}
+
+	s.log.Info().Any("event", event).Msg("sending event")
 
 	for id, provider := range s.channels {
 		if id.listID != listID {

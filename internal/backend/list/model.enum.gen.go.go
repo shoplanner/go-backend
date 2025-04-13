@@ -28,11 +28,15 @@ const (
 	EventTypeOptsUpdated
 	// EventTypeDeleted is a EventType of type Deleted.
 	EventTypeDeleted
+	// EventTypeStatesReordered is a EventType of type StatesReordered.
+	EventTypeStatesReordered
+	// EventTypeStateUpdated is a EventType of type StateUpdated.
+	EventTypeStateUpdated
 )
 
 var ErrInvalidEventType = fmt.Errorf("not a valid EventType, try [%s]", strings.Join(_EventTypeNames, ", "))
 
-const _EventTypeName = "fullproductsAddedproductsRemovedmembersAddedmembersRemovedoptsUpdateddeleted"
+const _EventTypeName = "fullproductsAddedproductsRemovedmembersAddedmembersRemovedoptsUpdateddeletedstatesReorderedstateUpdated"
 
 var _EventTypeNames = []string{
 	_EventTypeName[0:4],
@@ -42,6 +46,8 @@ var _EventTypeNames = []string{
 	_EventTypeName[44:58],
 	_EventTypeName[58:69],
 	_EventTypeName[69:76],
+	_EventTypeName[76:91],
+	_EventTypeName[91:103],
 }
 
 // EventTypeNames returns a list of possible string values of EventType.
@@ -61,6 +67,8 @@ func EventTypeValues() []EventType {
 		EventTypeMembersRemoved,
 		EventTypeOptsUpdated,
 		EventTypeDeleted,
+		EventTypeStatesReordered,
+		EventTypeStateUpdated,
 	}
 }
 
@@ -72,6 +80,8 @@ var _EventTypeMap = map[EventType]string{
 	EventTypeMembersRemoved:  _EventTypeName[44:58],
 	EventTypeOptsUpdated:     _EventTypeName[58:69],
 	EventTypeDeleted:         _EventTypeName[69:76],
+	EventTypeStatesReordered: _EventTypeName[76:91],
+	EventTypeStateUpdated:    _EventTypeName[91:103],
 }
 
 // String implements the Stringer interface.
@@ -90,13 +100,15 @@ func (x EventType) IsValid() bool {
 }
 
 var _EventTypeValue = map[string]EventType{
-	_EventTypeName[0:4]:   EventTypeFull,
-	_EventTypeName[4:17]:  EventTypeProductsAdded,
-	_EventTypeName[17:32]: EventTypeProductsRemoved,
-	_EventTypeName[32:44]: EventTypeMembersAdded,
-	_EventTypeName[44:58]: EventTypeMembersRemoved,
-	_EventTypeName[58:69]: EventTypeOptsUpdated,
-	_EventTypeName[69:76]: EventTypeDeleted,
+	_EventTypeName[0:4]:    EventTypeFull,
+	_EventTypeName[4:17]:   EventTypeProductsAdded,
+	_EventTypeName[17:32]:  EventTypeProductsRemoved,
+	_EventTypeName[32:44]:  EventTypeMembersAdded,
+	_EventTypeName[44:58]:  EventTypeMembersRemoved,
+	_EventTypeName[58:69]:  EventTypeOptsUpdated,
+	_EventTypeName[69:76]:  EventTypeDeleted,
+	_EventTypeName[76:91]:  EventTypeStatesReordered,
+	_EventTypeName[91:103]: EventTypeStateUpdated,
 }
 
 // ParseEventType attempts to convert a string to a EventType.

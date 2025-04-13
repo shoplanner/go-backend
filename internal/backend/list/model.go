@@ -23,10 +23,18 @@ type StateStatus int
 // ENUM(planning=1, processing, archived).
 type ExecStatus int32
 
+type ProductStateReplacement struct {
+	Count     mo.Option[int32]       `json:"count" swaggertype:"number" extensions:"x-nullable"`
+	FormIndex mo.Option[int32]       `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
+	ProductID id.ID[product.Product] `json:"product_id" swaggertype:"string"`
+	Product   product.Product        `json:"product"`
+}
+
 type ProductStateOptions struct {
-	Count     mo.Option[int32] `json:"count" swaggertype:"number" extensions:"x-nullable"`
-	FormIndex mo.Option[int32] `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
-	Status    StateStatus      `json:"status" swaggertype:"string"`
+	Count       mo.Option[int32]                   `json:"count" swaggertype:"number" extensions:"x-nullable"`
+	FormIndex   mo.Option[int32]                   `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
+	Status      StateStatus                        `json:"status" swaggertype:"string"`
+	Replacement mo.Option[ProductStateReplacement] `json:"replacement"`
 }
 
 type ProductState struct {
@@ -62,8 +70,7 @@ func NewZeroMember() Member {
 	}
 }
 
-// nolint:exported // here is another options
-type ListOptions struct {
+type ListOptions struct { // nolint:exported
 	Status ExecStatus `json:"status" swaggertype:"string"`
 	Title  string     `json:"title"`
 }
@@ -79,19 +86,14 @@ type ProductList struct {
 }
 
 func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member, error) {
-	idx := slices.IndexFunc(l.Members, func(m Member) bool {
-		return m.UserID == userID
-	})
-
-	if idx == -1 {
-		return NewZeroMember(), fmt.Errorf("%w: user %s is not belongs to list %s", myerr.ErrForbidden, userID, l.ID)
+	f, ch := CheckRole(userID, role)
+	err := f(l.Members)
+	member := <-ch
+	if err != nil {
+		return member, err
 	}
 
-	if role < l.Members[idx].Role {
-		return NewZeroMember(), fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
-	}
-
-	return l.Members[idx], nil
+	return member, nil
 }
 
 type ProductsAddedChange struct {
@@ -116,11 +118,12 @@ type MembersDeletedChange struct {
 	UserIDs []id.ID[user.User] `json:"user_ids"`
 }
 
-type ListReorderChange struct {
-	NewOrder map[uint64]id.ID[product.Product] `json:"new_order"`
+type StateUpdatedChange struct {
+	ProductID id.ID[product.Product]
+	State     ProductState
 }
 
-// ENUM(full=1,productsAdded,productsRemoved,membersAdded,membersRemoved,optsUpdated,deleted)
+// ENUM(full=1,productsAdded,productsRemoved,membersAdded,membersRemoved,optsUpdated,deleted,statesReordered,stateUpdated)
 type EventType int32
 
 type Event struct {
@@ -132,4 +135,29 @@ type Event struct {
 
 type RoleCheckFunc func([]Member) error
 
-func CheckRole(members []Member) func()
+func CheckRole(userID id.ID[user.User], role MemberType) (RoleCheckFunc, <-chan Member) {
+	returnCh := make(chan Member, 1)
+
+	return func(members []Member) error {
+		member := NewZeroMember()
+
+		defer func() {
+			returnCh <- member
+			close(returnCh)
+		}()
+
+		idx := slices.IndexFunc(members, func(m Member) bool {
+			return m.UserID == userID
+		})
+
+		if idx == -1 {
+			return fmt.Errorf("%w: user %s is not belongs to list", myerr.ErrForbidden, userID)
+		}
+
+		if role < members[idx].Role {
+			return fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)
+		}
+
+		return nil
+	}, returnCh
+}
