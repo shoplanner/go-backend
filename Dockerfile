@@ -1,7 +1,8 @@
-FROM golang:1.24.2 AS build
+FROM golang:1.24.2-alpine AS build
 
 WORKDIR /app
 
+RUN apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
 RUN go install github.com/go-task/task/v3/cmd/task@v3.40.1
 
 COPY taskfile.yml .
@@ -15,7 +16,7 @@ RUN go mod download
 
 COPY . .
 
-RUN task generate
+# RUN task generate
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 task build
 
 FROM scratch AS prod

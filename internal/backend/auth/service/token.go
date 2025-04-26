@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
 	"go-backend/internal/backend/auth"
@@ -42,6 +43,7 @@ type Service struct {
 	lock        sync.RWMutex
 	options     Options
 	encoder     tokenEncoder
+	log         zerolog.Logger
 }
 
 type Options struct {
@@ -50,6 +52,7 @@ type Options struct {
 }
 
 func New(
+	log zerolog.Logger,
 	users userService,
 	refreshRepo tokenRepo[auth.RefreshToken],
 	accessRepo tokenRepo[auth.AccessToken],
@@ -63,6 +66,7 @@ func New(
 		lock:        sync.RWMutex{},
 		options:     options,
 		encoder:     encoder,
+		log:         log.With().Str("component", "auth").Logger(),
 	}
 }
 
@@ -86,20 +90,28 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
+	s.log.Debug().Str("encoded", string(encodedRefreshToken)).Msg("refreshing token")
+
 	opts, err := s.encoder.DecodeRefreshToken(ctx, encodedRefreshToken)
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't decode refresh token: %w", err)
 	}
+
+	s.log.Debug().Any("opts", opts).Msg("decoded token")
 
 	_, state, err := s.refreshRepo.GetByID(ctx, opts.ID)
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get token info from storage: %w", err)
 	}
 
+	s.log.Debug().Any("state", state).Msg("got token state from storage")
+
 	if state.Status == auth.TokenStatusRevoked {
 		// refresh token was stolen
 		// emergency close all sections
 		var errs []error
+
+		s.log.Error().Any("state", state).Msg("token already revoked, closing all sections")
 
 		if deleteError := s.accessRepo.RevokeByUserID(ctx, opts.UserID); deleteError != nil {
 			errs = append(errs, fmt.Errorf("can't revoke all refresh tokens for user id %s: %w", opts.UserID, err))
@@ -124,6 +136,8 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get user %s: %w", opts.UserID, err)
 	}
+
+	s.log.Debug().Ctx(ctx).Any("user", loggedUser).Msg("identified user")
 
 	if err = s.refreshRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke: %w", err)

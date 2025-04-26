@@ -199,6 +199,7 @@ func main() {
 	// business logic
 	userService := userService.NewService(userDB, hashing.HashMaster{})
 	authService := authService.New(
+		parentLogger,
 		userService,
 		refreshRepo,
 		accessRepo,

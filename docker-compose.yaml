@@ -14,12 +14,22 @@ services:
     volumes:
       - ./dolt:/var/lib/dolt
       - ./config/dolt:/etc/dolt/servercf.d
+    healthcheck:
+      test: ["CMD-SHELL", 'dolt sql -q "SELECT 1;"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   shoplanner:
     build:
       context: .
     env_file:
       - ./.env
     depends_on:
-      - redis
+      dolt:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "3000:3000"
