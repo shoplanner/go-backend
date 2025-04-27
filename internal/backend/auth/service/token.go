@@ -142,6 +142,7 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 	if err = s.refreshRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke: %w", err)
 	}
+
 	if err = s.accessRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke access tokens: %w", err)
 	}
