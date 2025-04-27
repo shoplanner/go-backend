@@ -21,6 +21,14 @@ type Options struct {
 	Forms    []Form              `json:"forms" swaggertype:"array,string"`
 }
 
+func NewZeroOptions() Options {
+	return Options{
+		Name:     "",
+		Category: mo.Option[Category]{},
+		Forms:    []Form{},
+	}
+}
+
 type Category string
 
 type Form string

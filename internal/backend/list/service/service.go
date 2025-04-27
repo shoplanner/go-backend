@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/samber/mo"
 
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/product"
@@ -309,16 +308,14 @@ func (s *Service) AppendProducts(
 	var member list.Member
 	var err error
 
+	s.log.Info().Stringer("list_id", listID).Stringer("user_id", userID).Any("states", states).Msg("appending products")
+
 	newStates := make([]list.ProductState, 0, len(states))
 	for productID, stateOpts := range states {
 		newProductState := list.ProductState{
 			ProductStateOptions: stateOpts,
 			Product: product.Product{
-				Options: product.Options{
-					Category: mo.None[product.Category](),
-					Forms:    []product.Form{},
-					Name:     "",
-				},
+				Options:   product.NewZeroOptions(),
 				ID:        productID,
 				CreatedAt: date.CreateDate[product.Product]{Time: time.Time{}},
 				UpdatedAt: date.UpdateDate[product.Product]{Time: time.Time{}},
@@ -339,8 +336,6 @@ func (s *Service) AppendProducts(
 
 		newList.States = append(newList.States, newStates...)
 
-		fmt.Println("added products", newList.States)
-
 		if err = s.validate(oldList); err != nil {
 			return oldList, err
 		}
@@ -350,6 +345,8 @@ func (s *Service) AppendProducts(
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("can't append products: %w", err)
 	}
+
+	s.log.Info().Stringer("list_id", listID).Stringer("user_id", userID).Any("model", model).Msg("updated")
 
 	s.sendUpdateEvent(listID, member, list.EventTypeProductsAdded, list.ProductsAddedChange{Products: newStates})
 

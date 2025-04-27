@@ -138,25 +138,17 @@ func (r *Repo) GetAndUpdate(
 	var model list.ProductList
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
-		entity := ProductList{ID: listID.String()} //nolint:exhaustruct
-
-		err = tx.WithContext(ctx).
-			Preload("Members").
-			Preload("Members.User").
-			Preload("States").
-			Preload("States.Product.Category").
-			Preload("States.ReplacementProduct").
-			Preload("States.ReplacementProduct.Category").
-			Find(&entity).Error
-		if err != nil {
-			return fmt.Errorf("can't select product list %s: %w", listID, err)
-		}
-
-		model, err = updateFunc(entityToModel(entity))
+		model, err = r.getProductList(ctx, tx, listID)
 		if err != nil {
 			return err
 		}
-		entity = listToEntity(model)
+
+		model, err = updateFunc(model)
+		if err != nil {
+			return err
+		}
+
+		entity := listToEntity(model)
 		query := ProductList{ID: listID.String()} //nolint:exhaustruct
 
 		err = tx.WithContext(ctx).Model(&query).Association("Members").Unscoped().Replace(entity.Members)
@@ -174,7 +166,8 @@ func (r *Repo) GetAndUpdate(
 			return fmt.Errorf("can't update product list %s: %w", listID, err)
 		}
 
-		return nil
+		model, err = r.getProductList(ctx, tx, listID)
+		return err
 	})
 	if err != nil {
 		return list.ProductList{}, fmt.Errorf("transaction failed: %w", err)
@@ -189,20 +182,12 @@ func (r *Repo) GetAndDeleteList(
 	validateFunc func(list.ProductList) error,
 ) error {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		var entity list.ProductList
-
-		err := tx.WithContext(ctx).
-			Preload("Members").
-			Preload("States").
-			Preload("States.Product.Category").
-			Preload("States.ReplacementProduct").
-			Preload("States.ReplacementProduct.Category").
-			Find(&entity).Error
+		model, err := r.getProductList(ctx, tx, listID)
 		if err != nil {
-			return fmt.Errorf("can't select product list %s: %w", listID, err)
+			return err
 		}
 
-		if err = validateFunc(entity); err != nil {
+		if err = validateFunc(model); err != nil {
 			return err
 		}
 
@@ -304,6 +289,26 @@ func (r *Repo) getMembers(ctx context.Context, tx *gorm.DB, listID id.ID[list.Pr
 	return lo.Map(members, func(m ProductListMember, _ int) list.Member {
 		return memberToModel(m)
 	}), nil
+}
+
+func (r *Repo) getProductList(ctx context.Context, tx *gorm.DB, listID id.ID[list.ProductList]) (
+	list.ProductList, error,
+) {
+	entity := ProductList{ID: listID.String()} //nolint:exhaustruct
+
+	err := tx.WithContext(ctx).
+		Preload("Members").
+		Preload("Members.User").
+		Preload("States").
+		Preload("States.Product.Category").
+		Preload("States.ReplacementProduct").
+		Preload("States.ReplacementProduct.Category").
+		Find(&entity).Error
+	if err != nil {
+		return list.ProductList{}, fmt.Errorf("can't select product list %s: %w", listID, err)
+	}
+
+	return entityToModel(entity), nil
 }
 
 func entityToModel(entity ProductList) list.ProductList {
