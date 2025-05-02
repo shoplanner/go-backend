@@ -21,7 +21,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	gormMySQL "gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -63,10 +62,11 @@ const clientName = "shoplanner"
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	parentLogger := zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
+	parentLogger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Caller().Logger()
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	if err := godotenv.Load(); err != nil {
-		log.Info().Err(err).Msg("can't load .env file")
+		parentLogger.Info().Err(err).Msg("can't load .env file")
 	}
 
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
@@ -89,24 +89,24 @@ func main() {
 
 	appCfg, err := config.ParseConfig(*configPath)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't load config")
+		parentLogger.Fatal().Err(err).Msg("can't load config")
 	}
-	log.Info().Any("config", appCfg).Msg("Config loaded")
+	parentLogger.Info().Any("config", appCfg).Msg("Config loaded")
 
 	listener, err := net.Listen(appCfg.Service.Net, fmt.Sprintf("%s:%d", appCfg.Service.Host, appCfg.Service.Port))
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't start listening")
+		parentLogger.Fatal().Err(err).Msg("can't start listening")
 	}
 
 	envCfg, err := config.ParseEnv(ctx)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't parse environment")
+		parentLogger.Fatal().Err(err).Msg("can't parse environment")
 	}
-	log.Info().Any("env", envCfg).Msg("loaded env")
+	parentLogger.Info().Any("env", envCfg).Msg("loaded env")
 
 	authPrivateKey, err := decodeECDSA(envCfg.Auth.PrivateKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
+		parentLogger.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
@@ -130,12 +130,12 @@ func main() {
 		ClientName:  clientName,
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("creating redis client")
+		parentLogger.Fatal().Err(err).Msg("creating redis client")
 	}
 
 	sqlDB, err := sql.Open("mysql", doltCfg.FormatDSN())
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to database")
+		parentLogger.Fatal().Err(err).Msg("can't connect to database")
 	}
 	sqlAdapter := bd.NewDB(sqlDB, parentLogger.With().Logger())
 
@@ -145,47 +145,47 @@ func main() {
 		&gorm.Config{Logger: gormLog},
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("gorm: connecting to database")
+		parentLogger.Fatal().Err(err).Msg("gorm: connecting to database")
 	}
 
 	if err = sqlDB.PingContext(ctx); err != nil {
-		log.Fatal().Err(err).Caller().Stack().Msg("ping DB")
+		parentLogger.Fatal().Err(err).Caller().Stack().Msg("ping DB")
 	} else {
-		log.Info().Caller().Msg("DoltDB ping OK")
+		parentLogger.Info().Caller().Msg("DoltDB ping OK")
 	}
 
 	_, err = sqlAdapter.ExecContext(ctx, fmt.Sprintf("create database if not exists %s", envCfg.Database.Name))
 	if err != nil {
-		log.Fatal().Err(err).Msg("initializing database")
+		parentLogger.Fatal().Err(err).Msg("initializing database")
 	}
 	_, err = sqlDB.ExecContext(ctx, fmt.Sprintf(`USE %s`, envCfg.Database.Name))
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't use database")
+		parentLogger.Fatal().Err(err).Msg("can't use database")
 	}
 	_, err = sqlDB.ExecContext(ctx, "set global local_infile=1")
 	if err != nil {
-		log.Fatal().Err(err).Msg("enabling load data in DB")
+		parentLogger.Fatal().Err(err).Msg("enabling load data in DB")
 	}
 
 	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("initializing user repo")
+		parentLogger.Fatal().Err(err).Msg("initializing user repo")
 	}
 	accessRepo, err := authRepo.NewRedisRepo[auth.AccessToken](ctx, redisClient)
 	if err != nil {
-		log.Fatal().Err(err).Msg("initializing access tokens repo")
+		parentLogger.Fatal().Err(err).Msg("initializing access tokens repo")
 	}
 	refreshRepo, err := authRepo.NewRedisRepo[auth.RefreshToken](ctx, redisClient)
 	if err != nil {
-		log.Fatal().Err(err).Msg("initializing refresh tokens repo")
+		parentLogger.Fatal().Err(err).Msg("initializing refresh tokens repo")
 	}
 	shopMapRepo, err := shopMapRepo.NewShopMapRepo(ctx, sqlDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't initialize shop map storage")
+		parentLogger.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
 	productRepo, err := productRepo.NewGormRepo(ctx, gormDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't initialize product storage")
+		parentLogger.Fatal().Err(err).Msg("can't initialize product storage")
 	}
 	favoritesRepo, err := favoritesRepo.NewRepo(ctx, gormDB)
 	if err != nil {
@@ -235,20 +235,20 @@ func main() {
 
 	go func() {
 		if err = router.RunListener(listener); err != nil && ctx.Err() == nil {
-			log.Fatal().Err(err).Msg("listener returns error")
+			parentLogger.Fatal().Err(err).Msg("listener returns error")
 		}
 	}()
 
 	// wait for signal from OS
 	<-ctx.Done()
 
-	log.Info().Msg("received interrupt signal")
+	parentLogger.Info().Msg("received interrupt signal")
 
 	if err = listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Error().Err(err).Msg("closing listener cause error")
+		parentLogger.Error().Err(err).Msg("closing listener cause error")
 	}
 
-	log.Info().Msg("server stopped")
+	parentLogger.Info().Msg("server stopped")
 }
 
 func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {

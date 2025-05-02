@@ -17,22 +17,21 @@ import (
 
 //go:generate python $GOENUM
 
-// ENUM(waiting=1, missing, taken, replaced).
+// ENUM(waiting=1, missed, taken, replaced).
 type StateStatus int
 
 // ENUM(planning=1, processing, archived).
 type ExecStatus int32
 
 type ProductStateReplacement struct {
-	Count     mo.Option[int32]       `json:"count" swaggertype:"number" extensions:"x-nullable"`
-	FormIndex mo.Option[int32]       `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
-	ProductID id.ID[product.Product] `json:"product_id" swaggertype:"string"`
-	Product   product.Product        `json:"product"`
+	Count     mo.Option[int32] `json:"count" swaggertype:"number" extensions:"x-nullable"`
+	FormIndex mo.Option[int32] `json:"form_idx" swaggertype:"number" extensions:"x-nullable"`
+	Product   product.Product  `json:"product"`
 }
 
 type ProductStateOptions struct {
 	Count       mo.Option[int32]                   `json:"count" swaggertype:"number" extensions:"x-nullable"`
-	FormIndex   mo.Option[int32]                   `json:"form_index" swaggertype:"number" extensions:"x-nullable"`
+	FormIndex   mo.Option[int32]                   `json:"form_idx" swaggertype:"number" extensions:"x-nullable"`
 	Status      StateStatus                        `json:"status" swaggertype:"string"`
 	Replacement mo.Option[ProductStateReplacement] `json:"replacement"`
 }
@@ -70,7 +69,7 @@ func NewZeroMember() Member {
 	}
 }
 
-type ListOptions struct { // nolint:exported
+type ListOptions struct { //nolint
 	Status ExecStatus `json:"status" swaggertype:"string"`
 	Title  string     `json:"title"`
 }

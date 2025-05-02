@@ -1,7 +1,17 @@
 package deepcopy
 
-import "github.com/mohae/deepcopy"
+import (
+	"fmt"
+
+	"github.com/jinzhu/copier"
+)
 
 func MustCopy[T any](toCopy T) T {
-	return deepcopy.Copy(toCopy).(T)
+	var res T
+	err := copier.Copy(&res, toCopy)
+	if err != nil {
+		panic(fmt.Sprintf("failed to copy: %s", err.Error()))
+	}
+
+	return res
 }

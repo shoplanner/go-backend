@@ -69,7 +69,14 @@ func (q *Queries) GetAll(ctx context.Context) ([]User, error) {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, role, login, hash FROM users WHERE id = ? LIMIT 1
+SELECT
+    id, role, login, hash
+FROM
+    users
+WHERE
+    id = ?
+LIMIT
+    1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id string) (User, error) {

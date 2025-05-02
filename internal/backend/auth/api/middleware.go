@@ -46,16 +46,19 @@ func (m *JWTMiddleware) Middleware() func(*gin.Context) {
 		}
 
 		token, err := m.auth.IsAccessTokenValid(c, auth.EncodedAccessToken(rawToken))
-		if errors.Is(err, auth.ErrTokenExpired) {
+		switch {
+		case errors.Is(err, auth.ErrTokenExpired):
 			c.String(http.StatusGone, "access token expired")
 			c.Abort()
 			return
-		} else if errors.Is(err, myerr.ErrForbidden) {
+
+		case errors.Is(err, myerr.ErrForbidden):
 			c.String(http.StatusForbidden, err.Error())
 			c.Abort()
 			return
-		} else if err != nil {
-			log.Err(err).Str("userId", token.ID.String()).Msg("login failed")
+
+		case err != nil:
+			log.Err(err).Str("user_id", token.ID.String()).Msg("login failed")
 			c.String(http.StatusForbidden, "forbidden")
 			c.Abort()
 			return

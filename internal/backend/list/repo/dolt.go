@@ -101,21 +101,7 @@ func (r *Repo) GetListMetaByUserID(ctx context.Context, userID id.ID[user.User])
 }
 
 func (r *Repo) GetByListID(ctx context.Context, listID id.ID[list.ProductList]) (list.ProductList, error) {
-	entity := &ProductList{ID: listID.String()} //nolint:exhaustruct
-
-	err := r.db.WithContext(ctx).
-		Preload("Members").
-		Preload("Members.User").
-		Preload("States").
-		Preload("States.Product.Category").
-		Preload("States.ReplacementProduct").
-		Preload("States.ReplacementProduct.Category").
-		Find(&entity).Error
-	if err != nil {
-		return list.ProductList{}, fmt.Errorf("can't select product list %s: %w", listID, err)
-	}
-
-	return entityToModel(*entity), nil
+	return r.getProductList(ctx, r.db, listID)
 }
 
 func (r *Repo) CreateList(ctx context.Context, model list.ProductList) error {
@@ -300,6 +286,7 @@ func (r *Repo) getProductList(ctx context.Context, tx *gorm.DB, listID id.ID[lis
 		Preload("Members").
 		Preload("Members.User").
 		Preload("States").
+		Preload("States.Product.Forms").
 		Preload("States.Product.Category").
 		Preload("States.ReplacementProduct").
 		Preload("States.ReplacementProduct.Category").
@@ -350,7 +337,6 @@ func stateToModel(entity ProductListState) list.ProductState {
 		replacement = &list.ProductStateReplacement{
 			Count:     mo.PointerToOption(entity.ReplacementCount),
 			FormIndex: mo.PointerToOption(entity.ReplacementFormIdx),
-			ProductID: id.ID[product.Product]{UUID: god.Believe(uuid.Parse(*entity.ReplacementProductID))},
 			Product:   productRepo.EntityToModel(*entity.ReplacementProduct),
 		}
 	}
@@ -398,6 +384,7 @@ func memberToEntity(listID id.ID[list.ProductList], model list.Member) ProductLi
 
 func stateToEntity(listID id.ID[list.ProductList], model list.ProductState, index int64) ProductListState {
 	return ProductListState{
+		ID:                 uuid.NewString(),
 		ProductID:          model.Product.ID.String(),
 		Product:            productRepo.Product{ID: model.Product.ID.String()}, //nolint:exhaustruct
 		Count:              model.Count.ToPointer(),
@@ -410,6 +397,6 @@ func stateToEntity(listID id.ID[list.ProductList], model list.ProductState, inde
 		ReplacementCount:   model.Replacement.OrEmpty().Count.ToPointer(),
 		ReplacementFormIdx: model.Replacement.OrEmpty().FormIndex.ToPointer(),
 		ReplacementProductID: lo.If(model.Replacement.IsAbsent(), (*string)(nil)).
-			Else(lo.ToPtr(model.Replacement.OrEmpty().ProductID.String())),
+			Else(lo.ToPtr(model.Replacement.OrEmpty().Product.ID.String())),
 	}
 }

@@ -541,8 +541,8 @@ func (x MemberType) Value() (driver.Value, error) {
 const (
 	// StateStatusWaiting is a StateStatus of type Waiting.
 	StateStatusWaiting StateStatus = iota + 1
-	// StateStatusMissing is a StateStatus of type Missing.
-	StateStatusMissing
+	// StateStatusMissed is a StateStatus of type Missed.
+	StateStatusMissed
 	// StateStatusTaken is a StateStatus of type Taken.
 	StateStatusTaken
 	// StateStatusReplaced is a StateStatus of type Replaced.
@@ -551,13 +551,13 @@ const (
 
 var ErrInvalidStateStatus = fmt.Errorf("not a valid StateStatus, try [%s]", strings.Join(_StateStatusNames, ", "))
 
-const _StateStatusName = "waitingmissingtakenreplaced"
+const _StateStatusName = "waitingmissedtakenreplaced"
 
 var _StateStatusNames = []string{
 	_StateStatusName[0:7],
-	_StateStatusName[7:14],
-	_StateStatusName[14:19],
-	_StateStatusName[19:27],
+	_StateStatusName[7:13],
+	_StateStatusName[13:18],
+	_StateStatusName[18:26],
 }
 
 // StateStatusNames returns a list of possible string values of StateStatus.
@@ -571,7 +571,7 @@ func StateStatusNames() []string {
 func StateStatusValues() []StateStatus {
 	return []StateStatus{
 		StateStatusWaiting,
-		StateStatusMissing,
+		StateStatusMissed,
 		StateStatusTaken,
 		StateStatusReplaced,
 	}
@@ -579,9 +579,9 @@ func StateStatusValues() []StateStatus {
 
 var _StateStatusMap = map[StateStatus]string{
 	StateStatusWaiting:  _StateStatusName[0:7],
-	StateStatusMissing:  _StateStatusName[7:14],
-	StateStatusTaken:    _StateStatusName[14:19],
-	StateStatusReplaced: _StateStatusName[19:27],
+	StateStatusMissed:   _StateStatusName[7:13],
+	StateStatusTaken:    _StateStatusName[13:18],
+	StateStatusReplaced: _StateStatusName[18:26],
 }
 
 // String implements the Stringer interface.
@@ -601,9 +601,9 @@ func (x StateStatus) IsValid() bool {
 
 var _StateStatusValue = map[string]StateStatus{
 	_StateStatusName[0:7]:   StateStatusWaiting,
-	_StateStatusName[7:14]:  StateStatusMissing,
-	_StateStatusName[14:19]: StateStatusTaken,
-	_StateStatusName[19:27]: StateStatusReplaced,
+	_StateStatusName[7:13]:  StateStatusMissed,
+	_StateStatusName[13:18]: StateStatusTaken,
+	_StateStatusName[18:26]: StateStatusReplaced,
 }
 
 // ParseStateStatus attempts to convert a string to a StateStatus.

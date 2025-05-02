@@ -195,6 +195,11 @@ func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]l
 		return nil, fmt.Errorf("can't get disk meta related to user %s: %w", userID, err)
 	}
 
+	s.log.Debug().Ctx(ctx).
+		Any("models", models).
+		Stringer("user_id", userID).
+		Msg("got product lists from repo")
+
 	return models, nil
 }
 
@@ -365,12 +370,20 @@ func (s *Service) UpdateProductState(ctx context.Context,
 	var member list.Member
 	var state list.ProductState
 
+	s.log.Info().
+		Any("product_state_opts", stateOpts).
+		Stringer("product_id", productID).
+		Stringer("user_id", userID).
+		Msg("updating product state")
+
 	_, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
 		var err error
 
 		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
 			return oldList, fmt.Errorf("checking role failed: %w", err)
 		}
+
+		s.log.Debug().Any("model", oldList).Msg("got old list from repo")
 
 		newList := deepcopy.MustCopy(oldList)
 
@@ -396,6 +409,9 @@ func (s *Service) UpdateProductState(ctx context.Context,
 		ProductID: productID,
 		State:     state,
 	})
+
+	s.log.Info().Any("product_state", state).Stringer("product_id", productID).Stringer("user_id", userID).
+		Msg("updating product state")
 
 	return state, nil
 }
