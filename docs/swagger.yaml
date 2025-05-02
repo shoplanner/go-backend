@@ -82,11 +82,15 @@ definitions:
           type: string
         type: array
         uniqueItems: true
+      title:
+        type: string
       viewers_id:
         items:
           type: string
         type: array
         uniqueItems: true
+    required:
+    - title
     type: object
   user.CreateOptions:
     properties:
@@ -573,7 +577,7 @@ paths:
       operationId: shopmap-delete
       parameters:
       - description: id of shop map
-        in: query
+        in: path
         name: id
         required: true
         type: string
@@ -589,7 +593,7 @@ paths:
       operationId: shopmap-get-id
       parameters:
       - description: id of shop map
-        in: query
+        in: path
         name: id
         type: string
       produces:
@@ -606,7 +610,7 @@ paths:
       operationId: shopmap-update
       parameters:
       - description: id of shop map
-        in: query
+        in: path
         name: id
         required: true
         type: string
@@ -631,7 +635,7 @@ paths:
       operationId: shopmap-reorder
       parameters:
       - description: id of shop map
-        in: query
+        in: path
         name: id
         required: true
         type: string

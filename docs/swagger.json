@@ -756,7 +756,7 @@
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query"
+                        "in": "path"
                     }
                 ],
                 "responses": {}
@@ -783,7 +783,7 @@
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {
@@ -817,7 +817,7 @@
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     }
                 ],
@@ -847,7 +847,7 @@
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {
@@ -1054,6 +1054,9 @@
         },
         "shopmap.Options": {
             "type": "object",
+            "required": [
+                "title"
+            ],
             "properties": {
                 "categories": {
                     "type": "array",
@@ -1061,6 +1064,9 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "title": {
+                    "type": "string"
                 },
                 "viewers_id": {
                     "type": "array",

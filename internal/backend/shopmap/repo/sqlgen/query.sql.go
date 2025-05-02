@@ -15,16 +15,18 @@ const createShopMap = `-- name: CreateShopMap :exec
 INSERT INTO
     shop_maps(
         id,
+        title,
         owner_id,
         created_at,
         updated_at
     )
 VALUES
-    (?, ?, ?, ?)
+    (?, ?, ?, ?, ?)
 `
 
 type CreateShopMapParams struct {
 	ID        string
+	Title     string
 	OwnerID   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -33,28 +35,11 @@ type CreateShopMapParams struct {
 func (q *Queries) CreateShopMap(ctx context.Context, arg CreateShopMapParams) error {
 	_, err := q.db.ExecContext(ctx, createShopMap,
 		arg.ID,
+		arg.Title,
 		arg.OwnerID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	return err
-}
-
-const deleteCategoriesAfterIndex = `-- name: DeleteCategoriesAfterIndex :exec
-DELETE FROM
-    shop_map_categories
-WHERE
-    map_id = ?
-    AND number >= ?
-`
-
-type DeleteCategoriesAfterIndexParams struct {
-	MapID  string
-	Number uint32
-}
-
-func (q *Queries) DeleteCategoriesAfterIndex(ctx context.Context, arg DeleteCategoriesAfterIndexParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCategoriesAfterIndex, arg.MapID, arg.Number)
 	return err
 }
 
@@ -118,7 +103,7 @@ func (q *Queries) DeleteViewersByListID(ctx context.Context, userIds []string) e
 
 const getByID = `-- name: GetByID :one
 SELECT
-    id, owner_id, created_at, updated_at
+    id, owner_id, title, created_at, updated_at
 FROM
     shop_maps AS m
 WHERE
@@ -133,6 +118,7 @@ func (q *Queries) GetByID(ctx context.Context, id string) (ShopMap, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
+		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -141,7 +127,7 @@ func (q *Queries) GetByID(ctx context.Context, id string) (ShopMap, error) {
 
 const getByListID = `-- name: GetByListID :many
 SELECT
-    id, owner_id, created_at, updated_at
+    id, owner_id, title, created_at, updated_at
 FROM
     shop_maps
 WHERE
@@ -170,6 +156,7 @@ func (q *Queries) GetByListID(ctx context.Context, mapIds []string) ([]ShopMap, 
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
+			&i.Title,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -188,7 +175,7 @@ func (q *Queries) GetByListID(ctx context.Context, mapIds []string) ([]ShopMap, 
 
 const getByOwnerID = `-- name: GetByOwnerID :many
 SELECT
-    id, owner_id, created_at, updated_at
+    id, owner_id, title, created_at, updated_at
 FROM
     shop_maps AS m
 WHERE
@@ -207,6 +194,7 @@ func (q *Queries) GetByOwnerID(ctx context.Context, ownerID string) ([]ShopMap, 
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
+			&i.Title,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -428,38 +416,11 @@ type InsertViewersParams struct {
 	UserID string
 }
 
-const updateCategories = `-- name: UpdateCategories :exec
-INSERT INTO
-    shop_map_categories (map_id, number, category)
-VALUES
-    (?, ?, ?) ON DUPLICATE KEY
-UPDATE
-    map_id =
-VALUES
-    (map_id),
-    number =
-VALUES
-    (number),
-    category =
-VALUES
-    (category)
-`
-
-type UpdateCategoriesParams struct {
-	MapID    string
-	Number   uint32
-	Category string
-}
-
-func (q *Queries) UpdateCategories(ctx context.Context, arg UpdateCategoriesParams) error {
-	_, err := q.db.ExecContext(ctx, updateCategories, arg.MapID, arg.Number, arg.Category)
-	return err
-}
-
 const updateShopMap = `-- name: UpdateShopMap :exec
 UPDATE
     shop_maps
 SET
+    title = ?,
     owner_id = ?,
     updated_at = ?
 WHERE
@@ -467,12 +428,18 @@ WHERE
 `
 
 type UpdateShopMapParams struct {
+	Title     string
 	OwnerID   string
 	UpdatedAt time.Time
 	ID        string
 }
 
 func (q *Queries) UpdateShopMap(ctx context.Context, arg UpdateShopMapParams) error {
-	_, err := q.db.ExecContext(ctx, updateShopMap, arg.OwnerID, arg.UpdatedAt, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateShopMap,
+		arg.Title,
+		arg.OwnerID,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }

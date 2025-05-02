@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
 	"go-backend/internal/backend/product"
@@ -36,13 +37,15 @@ type userService interface {
 }
 
 type Service struct {
+	log       zerolog.Logger
 	users     userService
 	repo      repo
 	validator *validator.Validate
 }
 
-func NewService(userService userService, repo repo) *Service {
+func NewService(log zerolog.Logger, userService userService, repo repo) *Service {
 	s := &Service{
+		log:       log.With().Str("component", "shopmap.service").Logger(),
 		users:     userService,
 		repo:      repo,
 		validator: validator.New(),
@@ -143,7 +146,10 @@ func (s *Service) UpdateMap(
 	userID id.ID[user.User],
 	cfg shopmap.Options,
 ) (shopmap.ShopMap, error) {
+	s.log.Info().Stringer("map_id", mapID).Stringer("user_id", userID).Any("options", cfg).Msg("updating shopmap")
+
 	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
+		s.log.Debug().Stringer("map_id", mapID).Any("shopmap", shopMap).Msg("got shopmap from repo")
 		if userID != shopMap.OwnerID {
 			return shopMap, fmt.Errorf("%w: only owner can delete shop map", myerr.ErrForbidden)
 		}
@@ -215,6 +221,8 @@ func (s *Service) repoGetAndUpdate(
 	if err != nil {
 		return shopMap, fmt.Errorf("shop map service: can't update shop map %s: %w", mapID, err)
 	}
+
+	s.log.Debug().Any("shopmap", shopMap).Msg("updated shopmap")
 
 	return shopMap, nil
 }

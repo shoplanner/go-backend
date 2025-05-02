@@ -11,6 +11,7 @@ import (
 type ShopMap struct {
 	ID        string
 	OwnerID   string
+	Title     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

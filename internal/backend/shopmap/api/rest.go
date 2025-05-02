@@ -65,12 +65,12 @@ func (h *Handler) CreateMap(ctx *gin.Context) {
 // @ID			shopmap-get-id
 //
 // @Tags		ShopMap
-// @Param		id	query	string	false	"id of shop map"
+// @Param		id	path	string	false	"id of shop map"
 // @Produce	json
 // @Router		/shopmap/id/{id} [get]
 // @Security ApiKeyAuth
 func (h *Handler) GetByID(ctx *gin.Context) {
-	mapID, err := uuid.Parse(ctx.Query("id"))
+	mapID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id is not valid uuid")
 		return
@@ -112,13 +112,13 @@ func (h *Handler) GetCurrentUserList(ctx *gin.Context) {
 // @Summary	Deletes shop map
 // @ID			shopmap-delete
 //
-// @Param		id	query	string	true	"id of shop map"
+// @Param		id	path	string	true	"id of shop map"
 // @Tags		ShopMap
 // @Produce	json
 // @Security ApiKeyAuth
 // @Router		/shopmap/id/{id} [delete]
 func (h *Handler) DeleteMap(ctx *gin.Context) {
-	mapID, err := uuid.Parse(ctx.Query("id"))
+	mapID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id must be valid uuid")
 		return
@@ -143,7 +143,7 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 // @ID			shopmap-update
 // @Tags		ShopMap
 //
-// @Param		id		query	string			true	"id of shop map"
+// @Param		id		path	string			true	"id of shop map"
 // @Param		config	body	shopmap.Options	true	"new configuration"
 // @Produce	json
 // @Accept		json
@@ -152,7 +152,7 @@ func (h *Handler) DeleteMap(ctx *gin.Context) {
 func (h *Handler) UpdateMap(ctx *gin.Context) {
 	var shopMapCfg shopmap.Options
 
-	mapID, err := uuid.Parse(ctx.Query("id"))
+	mapID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.String(http.StatusBadRequest, "id must be valid uuid")
 		return
@@ -180,7 +180,7 @@ type CategoryList struct {
 // @ID			shopmap-reorder
 // @Tags		ShopMap
 //
-// @Param		id			query	string		true	"id of shop map"
+// @Param		id			path	string		true	"id of shop map"
 // @Param		categories	body	[]string	true	"new order of categories"
 // @Accept		json
 // @Produce	json
@@ -189,7 +189,7 @@ type CategoryList struct {
 func (h *Handler) ReorderMap(c *gin.Context) {
 	var categories []product.Category
 
-	mapID, err := uuid.Parse(c.Query("id"))
+	mapID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.String(http.StatusBadRequest, "id is not valid")
 		return

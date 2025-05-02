@@ -19,4 +19,5 @@ type ShopMap struct {
 type Options struct {
 	CategoryList []product.Category `validate:"unique" json:"categories" swaggertype:"array,string"`
 	ViewerIDList []id.ID[user.User] `validate:"unique" json:"viewers_id" swaggertype:"array,string"`
+	Title        string             `validate:"required" json:"title"`
 }

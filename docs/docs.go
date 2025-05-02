@@ -764,7 +764,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query"
+                        "in": "path"
                     }
                 ],
                 "responses": {}
@@ -791,7 +791,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {
@@ -825,7 +825,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     }
                 ],
@@ -855,7 +855,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "id of shop map",
                         "name": "id",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     },
                     {
@@ -1062,6 +1062,9 @@ const docTemplate = `{
         },
         "shopmap.Options": {
             "type": "object",
+            "required": [
+                "title"
+            ],
             "properties": {
                 "categories": {
                     "type": "array",
@@ -1069,6 +1072,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "title": {
+                    "type": "string"
                 },
                 "viewers_id": {
                     "type": "array",

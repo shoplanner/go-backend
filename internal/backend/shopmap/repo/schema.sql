@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS shop_maps (
     id varchar(36) PRIMARY KEY,
     owner_id varchar(36) NOT NULL,
+    title varchar(255) NOT NULL,
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL
 );

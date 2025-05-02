@@ -209,7 +209,7 @@ func main() {
 			RefreshTokenExpires: appCfg.Auth.RefreshTokenLiveTime,
 		},
 	)
-	shopMapService := shopMapService.NewService(userService, shopMapRepo)
+	shopMapService := shopMapService.NewService(parentLogger, userService, shopMapRepo)
 	productService := productService.NewService(productRepo)
 	favoriteService := favoritesService.NewService(favoritesRepo, userService)
 	listService := listService.NewService(listRepo, parentLogger)

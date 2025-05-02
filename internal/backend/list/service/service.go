@@ -195,11 +195,6 @@ func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]l
 		return nil, fmt.Errorf("can't get disk meta related to user %s: %w", userID, err)
 	}
 
-	s.log.Debug().Ctx(ctx).
-		Any("models", models).
-		Stringer("user_id", userID).
-		Msg("got product lists from repo")
-
 	return models, nil
 }
 

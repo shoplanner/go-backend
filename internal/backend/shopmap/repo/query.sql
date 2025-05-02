@@ -52,12 +52,13 @@ WHERE
 INSERT INTO
     shop_maps(
         id,
+        title,
         owner_id,
         created_at,
         updated_at
     )
 VALUES
-    (?, ?, ?, ?);
+    (?, ?, ?, ?, ?);
 
 -- name: InsertViewers :copyfrom
 INSERT INTO
@@ -75,6 +76,7 @@ VALUES
 UPDATE
     shop_maps
 SET
+    title = ?,
     owner_id = ?,
     updated_at = ?
 WHERE
@@ -97,29 +99,6 @@ DELETE FROM
     shop_map_categories
 WHERE
     map_id = ?;
-
--- name: DeleteCategoriesAfterIndex :exec
-DELETE FROM
-    shop_map_categories
-WHERE
-    map_id = ?
-    AND number >= ?;
-
--- name: UpdateCategories :exec
-INSERT INTO
-    shop_map_categories (map_id, number, category)
-VALUES
-    (?, ?, ?) ON DUPLICATE KEY
-UPDATE
-    map_id =
-VALUES
-    (map_id),
-    number =
-VALUES
-    (number),
-    category =
-VALUES
-    (category);
 
 -- name: GetCategoriesByListID :many
 SELECT

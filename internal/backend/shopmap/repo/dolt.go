@@ -53,6 +53,7 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 
 	err = qtx.CreateShopMap(ctx, sqlgen.CreateShopMapParams{
 		ID:        model.ID.String(),
+		Title:     model.Title,
 		OwnerID:   model.OwnerID.String(),
 		CreatedAt: model.CreatedAt.Time,
 		UpdatedAt: model.UpdatedAt.Time,
@@ -138,7 +139,7 @@ func (s *ShopMapRepo) GetAndUpdate(
 		return model, err
 	}
 
-	if err = update(ctx, qtx, model, oldModel); err != nil {
+	if err = update(ctx, qtx, model); err != nil {
 		return model, err
 	}
 
@@ -245,8 +246,9 @@ func (s *ShopMapRepo) getByID(
 	return entityToModel(shopMap, categories, viewers), nil
 }
 
-func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap, oldModel shopmap.ShopMap) error {
+func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap) error {
 	err := qtx.UpdateShopMap(ctx, sqlgen.UpdateShopMapParams{
+		Title:     newModel.Title,
 		OwnerID:   newModel.OwnerID.String(),
 		UpdatedAt: newModel.UpdatedAt.Time,
 		ID:        newModel.ID.String(),
@@ -255,69 +257,36 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap, 
 		return fmt.Errorf("can't update shop map %s: %w", newModel.ID, err)
 	}
 
-	// remove extra categories, then updates leaving
-	if len(newModel.CategoryList) < len(oldModel.CategoryList) {
-		if err = qtx.DeleteCategoriesAfterIndex(ctx, sqlgen.DeleteCategoriesAfterIndexParams{
-			MapID:  newModel.ID.String(),
-			Number: uint32(len(newModel.CategoryList)), //nolint:gosec // index can't be negative
-		}); err != nil {
-			return fmt.Errorf("doltdb: can't delete old categories %s: %w", newModel.ID, err)
-		}
-	} else if len(newModel.CategoryList) > len(oldModel.CategoryList) {
-		_, err = qtx.InsertCategories(
-			ctx,
-			lo.Map(
-				newModel.CategoryList[len(oldModel.CategoryList):],
-				func(item product.Category, index int) sqlgen.InsertCategoriesParams {
-					return sqlgen.InsertCategoriesParams{
-						MapID:    newModel.ID.String(),
-						Number:   uint32(index), //nolint:gosec // index can't be negative
-						Category: string(item),
-					}
-				}))
-		if err != nil {
-			return fmt.Errorf("can't insert new categories in shop map %s: %w", newModel.ID, err)
-		}
+	// remove all categories because I can
+
+	if err = qtx.DeleteCategoriesByMapID(ctx, newModel.ID.String()); err != nil {
+		return fmt.Errorf("failed to clear old categories: %w", err)
+	}
+	_, err = qtx.InsertCategories(ctx,
+		lo.Map(newModel.CategoryList, func(item product.Category, index int) sqlgen.InsertCategoriesParams {
+			return sqlgen.InsertCategoriesParams{
+				MapID:    newModel.ID.String(),
+				Number:   uint32(index), //nolint:gosec // index can't be negative
+				Category: string(item),
+			}
+		}))
+	if err != nil {
+		return fmt.Errorf("failed to insert updated categories: %w", err)
 	}
 
-	// update changed categories
-	for i := range min(len(newModel.CategoryList), len(oldModel.CategoryList)) {
-		if newModel.CategoryList[i] == oldModel.CategoryList[i] {
-			continue
-		}
-
-		params := sqlgen.UpdateCategoriesParams{
-			Number:   uint32(i), //nolint:gosec //index can't be negative
-			MapID:    newModel.ID.String(),
-			Category: string(newModel.CategoryList[i]),
-		}
-
-		err = qtx.UpdateCategories(ctx, params)
-		if err != nil {
-			return fmt.Errorf("can't update categories of shop map %s: %w", newModel.ID, err)
-		}
+	if err = qtx.DeleteViewers(ctx, newModel.ID.String()); err != nil {
+		return fmt.Errorf("failed to clear all viewers: %w", err)
 	}
 
-	added, deleted := lo.Difference(newModel.ViewerIDList, oldModel.ViewerIDList)
-	if len(added) != 0 {
-		_, err = qtx.InsertViewers(ctx, lo.Map(added, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
+	_, err = qtx.InsertViewers(ctx,
+		lo.Map(newModel.ViewerIDList, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
 			return sqlgen.InsertViewersParams{
 				MapID:  newModel.ID.String(),
 				UserID: userID.String(),
 			}
 		}))
-		if err != nil {
-			return wrapErr(fmt.Errorf("can't add new viewers to shop map %s: %w", newModel.ID, err))
-		}
-	}
-
-	if len(deleted) != 0 {
-		err = qtx.DeleteViewersByListID(ctx, lo.Map(deleted, func(userID id.ID[user.User], _ int) string {
-			return userID.String()
-		}))
-		if err != nil {
-			return wrapErr(fmt.Errorf("can't delete viewers from shop map %s: %w", newModel.ID, err))
-		}
+	if err != nil {
+		return fmt.Errorf("failed to insert updated viewers: %w", err)
 	}
 
 	return nil
@@ -330,6 +299,7 @@ func entityToModel(
 ) shopmap.ShopMap {
 	model := shopmap.ShopMap{
 		Options: shopmap.Options{
+			Title:        shopMap.Title,
 			CategoryList: make([]product.Category, len(categories)),
 			ViewerIDList: lo.Map(viewers, func(item sqlgen.ShopMapViewer, _ int) id.ID[user.User] {
 				return id.ID[user.User]{UUID: god.Believe(uuid.Parse(item.UserID))}
