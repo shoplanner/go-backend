@@ -13,6 +13,7 @@ import (
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
+	"go-backend/pkg/myerr"
 )
 
 type listService interface {
@@ -48,6 +49,7 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 	closeChan := make(chan struct{})
 	listID, ok := rerr.PathID[list.ProductList](ctx)
 	if !ok {
+		s.HandleError(ctx, fmt.Errorf("%w: no id provided", myerr.ErrInvalidArgument))
 		return
 	}
 	userID := api.GetUserID(ctx)

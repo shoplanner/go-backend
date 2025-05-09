@@ -3,15 +3,18 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"go-backend/internal/backend/auth"
 	"go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/user"
+	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 )
@@ -25,12 +28,17 @@ const (
 )
 
 type JWTMiddleware struct {
+	rerr.BaseHandler
+
 	auth *service.Service
+	log  zerolog.Logger
 }
 
-func NewAuthMiddleware(auth *service.Service) *JWTMiddleware {
+func NewAuthMiddleware(log zerolog.Logger, auth *service.Service) *JWTMiddleware {
 	return &JWTMiddleware{
-		auth: auth,
+		BaseHandler: rerr.NewBaseHandler(log),
+		auth:        auth,
+		log:         log.With().Str("component", "auth middleware").Logger(),
 	}
 }
 
@@ -40,7 +48,7 @@ func (m *JWTMiddleware) Middleware() func(*gin.Context) {
 
 		rawToken, cut := strings.CutPrefix(header, "Bearer ")
 		if !cut {
-			c.String(http.StatusBadRequest, "only 'Bearer' tokens accepted")
+			m.HandleError(c, fmt.Errorf("%w: only 'Bearer tokens accepted", myerr.ErrInvalidArgument))
 			c.Abort()
 			return
 		}
@@ -50,10 +58,23 @@ func (m *JWTMiddleware) Middleware() func(*gin.Context) {
 		case errors.Is(err, auth.ErrTokenExpired):
 			c.String(http.StatusGone, "access token expired")
 			c.Abort()
+			m.log.Error().
+				Stringer("user_id", token.UserID).
+				Str("method", c.Request.Method).
+				Str("uri", c.Request.RequestURI).
+				Msg("access token expired")
+
 			return
 
 		case errors.Is(err, myerr.ErrForbidden):
 			c.String(http.StatusForbidden, err.Error())
+			m.log.Error().
+				Stringer("user_id", token.UserID).
+				Str("method", c.Request.Method).
+				Str("uri", c.Request.RequestURI).
+				Err(err).
+				Msg("access forbidden")
+
 			c.Abort()
 			return
 

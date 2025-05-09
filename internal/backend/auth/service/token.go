@@ -70,16 +70,25 @@ func New(
 	}
 }
 
-func (s *Service) Login(ctx context.Context, opts auth.Credentials) (auth.AccessToken, auth.RefreshToken, error) {
+func (s *Service) Login(ctx context.Context, opts auth.Credentials) (
+	auth.AccessToken, auth.RefreshToken, id.ID[user.User], error,
+) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	loggedUser, err := s.users.ValidatePassword(ctx, opts.Login, opts.Password)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: %w", myerr.ErrInvalidArgument, err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf(
+			"%w: %w", myerr.ErrInvalidArgument, err,
+		)
 	}
 
-	return s.getNewTokens(ctx, loggedUser, opts.DeviceID)
+	access, refresh, err := s.getNewTokens(ctx, loggedUser, opts.DeviceID)
+	if err != nil {
+		return access, refresh, id.ID[user.User]{}, err
+	}
+
+	return access, refresh, loggedUser.ID, err
 }
 
 func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedRefreshToken) (

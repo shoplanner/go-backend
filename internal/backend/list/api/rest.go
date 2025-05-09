@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -186,8 +185,6 @@ func (h *Handler) AddViewerList(ctx *gin.Context) {
 	if ok = h.Decode(ctx, &members); !ok {
 		return
 	}
-
-	fmt.Println(members)
 
 	model, err := h.service.AppendMembers(ctx, listID, api.GetUserID(ctx), members)
 	if err != nil {

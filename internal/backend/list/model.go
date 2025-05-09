@@ -103,11 +103,11 @@ type ProductsRemovedChange struct {
 	IDs []id.ID[product.Product] `json:"ids"`
 }
 
-type ListOptionsChange struct {
+type ListOptionsChange struct { //nolint:revive
 	NewOptions ListOptions `json:"new_options"`
 }
 
-type ListDeletedChange struct{}
+type ListDeletedChange struct{} //nolint:revive
 
 type MembersAddedChange struct {
 	NewMembers []Member `json:"new_members"`
@@ -122,14 +122,26 @@ type StateUpdatedChange struct {
 	State     ProductState
 }
 
-// ENUM(full=1,productsAdded,productsRemoved,membersAdded,membersRemoved,optsUpdated,deleted,statesReordered,stateUpdated)
+// ENUM(full=1,
+// productsAdded,
+// productsRemoved,
+// membersAdded,
+// membersRemoved,
+// optsUpdated,
+// deleted,
+// statesReordered,
+// stateUpdated)
 type EventType int32
+
+type Change struct {
+	Data any       `json:"data"`
+	Type EventType `json:"type"`
+}
 
 type Event struct {
 	ListID id.ID[ProductList] `json:"list_id"`
 	Member *Member            `json:"member"`
-	Type   EventType          `json:"type"`
-	Change any                `json:"change"`
+	Change Change             `json:"change"`
 }
 
 type RoleCheckFunc func([]Member) error

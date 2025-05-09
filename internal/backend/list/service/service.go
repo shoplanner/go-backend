@@ -220,9 +220,10 @@ func (s *Service) AppendMembers(
 	})
 
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
-			return oldList, fmt.Errorf("checking role failed: %w", err)
-		}
+		// FIXME: may be for some reason it will be implemented on the frontend
+		// if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+		// 	return oldList, fmt.Errorf("checking role failed: %w", err)
+		// }
 
 		newList := deepcopy.MustCopy(oldList)
 
@@ -258,8 +259,10 @@ func (s *Service) DeleteMembers(
 	var err error
 
 	model, err := s.repo.GetAndUpdate(ctx, listID, func(oldList list.ProductList) (list.ProductList, error) {
-		if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
-			return oldList, fmt.Errorf("checking role failed: %w", err)
+		if len(toDelete) != 1 || toDelete[0] != userID { // or member deleting himself
+			if member, err = oldList.CheckRole(userID, list.MemberTypeAdmin); err != nil {
+				return oldList, fmt.Errorf("checking role failed: %w", err)
+			}
 		}
 
 		newList := deepcopy.MustCopy(oldList)

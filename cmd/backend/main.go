@@ -216,7 +216,7 @@ func main() {
 
 	// API
 
-	jwtMiddleware := authAPI.NewAuthMiddleware(authService)
+	jwtMiddleware := authAPI.NewAuthMiddleware(parentLogger, authService)
 
 	apiGroup := swaggerAPI.Init(router)
 
