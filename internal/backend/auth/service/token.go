@@ -83,7 +83,7 @@ func (s *Service) Login(ctx context.Context, opts auth.Credentials) (
 		)
 	}
 
-	access, refresh, err := s.getNewTokens(ctx, loggedUser, opts.DeviceID)
+	access, refresh, _, err := s.getNewTokens(ctx, loggedUser, opts.DeviceID)
 	if err != nil {
 		return access, refresh, id.ID[user.User]{}, err
 	}
@@ -94,6 +94,7 @@ func (s *Service) Login(ctx context.Context, opts auth.Credentials) (
 func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedRefreshToken) (
 	auth.AccessToken,
 	auth.RefreshToken,
+	id.ID[user.User],
 	error,
 ) {
 	s.lock.Lock()
@@ -103,14 +104,15 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 
 	opts, err := s.encoder.DecodeRefreshToken(ctx, encodedRefreshToken)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't decode refresh token: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't decode refresh token: %w", err)
 	}
 
 	s.log.Debug().Any("opts", opts).Msg("decoded token")
 
 	_, state, err := s.refreshRepo.GetByID(ctx, opts.ID)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get token info from storage: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+			fmt.Errorf("can't get token info from storage: %w", err)
 	}
 
 	s.log.Debug().Any("state", state).Msg("got token state from storage")
@@ -129,31 +131,34 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 			errs = append(errs, fmt.Errorf("can't revoke all access tokens for user id %s: %w", opts.UserID, deleteError))
 		}
 
-		return auth.AccessToken{}, auth.RefreshToken{}, errors.Join(
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, errors.Join(
 			append(errs, fmt.Errorf("%w: token was already revoked", myerr.ErrForbidden))...,
 		)
 	}
 
 	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+			fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
 	}
 	if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("%w: refresh token", auth.ErrTokenNotActive)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+			fmt.Errorf("%w: refresh token", auth.ErrTokenNotActive)
 	}
 
 	loggedUser, err := s.users.GetByID(ctx, opts.UserID)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't get user %s: %w", opts.UserID, err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+			fmt.Errorf("can't get user %s: %w", opts.UserID, err)
 	}
 
 	s.log.Debug().Ctx(ctx).Any("user", loggedUser).Msg("identified user")
 
 	if err = s.refreshRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't revoke: %w", err)
 	}
 
 	if err = s.accessRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't revoke access tokens: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't revoke access tokens: %w", err)
 	}
 
 	return s.getNewTokens(ctx, loggedUser, opts.DeviceID)
@@ -202,6 +207,7 @@ func (s *Service) Logout(ctx context.Context, userID id.ID[user.User], deviceID 
 func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceID auth.DeviceID) (
 	auth.AccessToken,
 	auth.RefreshToken,
+	id.ID[user.User],
 	error,
 ) {
 	var err error
@@ -241,12 +247,12 @@ func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceI
 
 	accessToken.SignedString, err = s.encoder.EncodeAccessToken(ctx, accessToken.AccessTokenOptions)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't encode token: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't encode token: %w", err)
 	}
 
 	refreshToken.SignedString, err = s.encoder.EncodeRefreshToken(ctx, refreshToken.RefreshTokenOptions)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't encode token: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't encode token: %w", err)
 	}
 
 	_, err = lo.NewTransaction[any]().Then(
@@ -257,8 +263,9 @@ func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceI
 		func(_ any) any { return s.accessRepo.DeleteByID(ctx, accessToken.ID) },
 	).Process(nil)
 	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, fmt.Errorf("can't save tokens to storage: %w", err)
+		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+			fmt.Errorf("can't save tokens to storage: %w", err)
 	}
 
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, userModel.ID, nil
 }

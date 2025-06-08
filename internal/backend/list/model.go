@@ -96,30 +96,30 @@ func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member
 }
 
 type ProductsAddedChange struct {
-	Products []ProductState `json:"products"`
+	Products []ProductState `json:"products"` // done
 }
 
 type ProductsRemovedChange struct {
-	IDs []id.ID[product.Product] `json:"ids"`
+	IDs []id.ID[product.Product] `json:"ids"` // done
 }
 
 type ListOptionsChange struct { //nolint:revive
-	NewOptions ListOptions `json:"new_options"`
+	NewOptions ListOptions `json:"new_options"` // done
 }
 
-type ListDeletedChange struct{} //nolint:revive
+type ListDeletedChange struct{} //nolint:revive // done
 
 type MembersAddedChange struct {
-	NewMembers []Member `json:"new_members"`
+	NewMembers []Member `json:"new_members"` // skipped
 }
 
 type MembersDeletedChange struct {
-	UserIDs []id.ID[user.User] `json:"user_ids"`
+	UserIDs []id.ID[user.User] `json:"user_ids"` // skipped
 }
 
 type StateUpdatedChange struct {
-	ProductID id.ID[product.Product]
-	State     ProductState
+	ProductID id.ID[product.Product] `json:"product_id"`
+	State     ProductState           `json:"state"`
 }
 
 // ENUM(full=1,

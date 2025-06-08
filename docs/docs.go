@@ -1004,6 +1004,9 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
                 }
             }
         },

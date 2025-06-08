@@ -58,9 +58,11 @@ func (s *Service) ListenEvents(
 
 	provider.ch <- list.Event{
 		ListID: listID,
-		Type:   list.EventTypeFull,
+		Change: list.Change{
+			Data: currentList,
+			Type: list.EventTypeFull,
+		},
 		Member: nil, // no real change here
-		Change: currentList,
 	}
 
 	s.channelsLock.Unlock()
@@ -101,10 +103,12 @@ func (s *Service) sendUpdateEvent(
 	defer s.channelsLock.RUnlock()
 
 	event := list.Event{
-		Type:   eventType,
+		Change: list.Change{
+			Data: change,
+			Type: eventType,
+		},
 		ListID: listID,
 		Member: &member,
-		Change: change,
 	}
 
 	s.log.Info().Any("event", event).Msg("sending event")

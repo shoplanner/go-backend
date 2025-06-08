@@ -9,6 +9,8 @@ import (
 
 	"go-backend/internal/backend/auth"
 	"go-backend/internal/backend/auth/service"
+	"go-backend/internal/backend/user"
+	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 )
 
@@ -17,6 +19,7 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 	Type         string `json:"type"`
 	Expires      string `json:"expires"`
+	UserID       string `json:"user_id"`
 }
 
 type RefreshRequest struct {
@@ -53,7 +56,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	access, refresh, err := h.service.Login(c, opts)
+	access, refresh, userID, err := h.service.Login(c, opts)
 	if errors.Is(err, auth.ErrTokenExpired) {
 		c.String(http.StatusGone, "access token expired")
 		return
@@ -63,7 +66,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tokensToResponse(access, refresh))
+	c.JSON(http.StatusOK, tokensToResponse(access, refresh, userID))
 }
 
 // @Summary	logout from session
@@ -97,7 +100,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	access, refresh, err := h.service.Refresh(c, auth.EncodedRefreshToken(req.RefreshToken))
+	access, refresh, userID, err := h.service.Refresh(c, auth.EncodedRefreshToken(req.RefreshToken))
 	switch {
 	case errors.Is(err, auth.ErrTokenExpired):
 		c.String(http.StatusGone, "refresh token expired")
@@ -114,11 +117,12 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tokensToResponse(access, refresh))
+	c.JSON(http.StatusOK, tokensToResponse(access, refresh, userID))
 }
 
-func tokensToResponse(access auth.AccessToken, refresh auth.RefreshToken) TokenResponse {
+func tokensToResponse(access auth.AccessToken, refresh auth.RefreshToken, userID id.ID[user.User]) TokenResponse {
 	return TokenResponse{
+		UserID:       userID.String(),
 		AccessToken:  string(access.SignedString),
 		RefreshToken: string(refresh.SignedString),
 		Type:         "Bearer",
