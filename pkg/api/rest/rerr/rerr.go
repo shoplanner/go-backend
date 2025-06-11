@@ -69,7 +69,7 @@ func Path[T any](ctx *gin.Context, name string) (id.ID[T], bool) {
 }
 
 func QueryID[T any](ctx *gin.Context, name string) (id.ID[T], bool) {
-	rawID := ctx.Param(name)
+	rawID := ctx.Query(name)
 
 	uuidID, err := uuid.Parse(rawID)
 	if err != nil {
