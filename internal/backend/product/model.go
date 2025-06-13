@@ -7,6 +7,7 @@ import (
 	"go-backend/pkg/id"
 )
 
+// Product is a product
 type Product struct {
 	Options
 
@@ -15,12 +16,14 @@ type Product struct {
 	UpdatedAt date.UpdateDate[Product] `json:"updated_at" swaggertype:"string"`
 }
 
+// Options are options of a Product
 type Options struct {
 	Name     Name                `json:"name" swaggertype:"string"`
 	Category mo.Option[Category] `json:"category" swaggertype:"string"`
 	Forms    []Form              `json:"forms" swaggertype:"array,string"`
 }
 
+// NewZeroOptions returns zero options
 func NewZeroOptions() Options {
 	return Options{
 		Name:     "",
@@ -29,8 +32,11 @@ func NewZeroOptions() Options {
 	}
 }
 
+// Category is a category of a Product
 type Category string
 
+// Form is a form of a Product
 type Form string
 
+// Name is a name of a Product
 type Name string

@@ -1,6 +1,7 @@
 package rerr_test
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -18,17 +19,17 @@ func TestQueryID(t *testing.T) {
 		w := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(w)
 		idStr := uuid.NewString()
-		ctx.Request = httptest.NewRequest("GET", "/?id="+idStr, nil)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/?id="+idStr, nil)
 
 		id, ok := rerr.QueryID[struct{}](ctx, "id")
 		require.True(t, ok)
-		require.Equal(t, idStr, id.UUID.String())
+		require.Equal(t, idStr, id.String())
 	})
 
 	t.Run("invalid query id", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(w)
-		ctx.Request = httptest.NewRequest("GET", "/?id=invalid", nil)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/?id=invalid", nil)
 
 		id, ok := rerr.QueryID[struct{}](ctx, "id")
 		require.False(t, ok)
@@ -47,7 +48,7 @@ func TestPathID(t *testing.T) {
 
 		id, ok := rerr.PathID[struct{}](ctx)
 		require.True(t, ok)
-		require.Equal(t, idStr, id.UUID.String())
+		require.Equal(t, idStr, id.String())
 	})
 
 	t.Run("invalid path id", func(t *testing.T) {
