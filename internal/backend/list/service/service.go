@@ -68,7 +68,10 @@ func (s *Service) ReoderStates(
 		return fmt.Errorf("failed to apply new order to list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.Change{Type: list.EventTypeStatesReordered, Data: list.StatesReorderedChange{IDs: ids}})
+	s.sendUpdateEvent(listID, member, list.Change{
+		Type: list.EventTypeStatesReordered,
+		Data: list.StatesReorderedChange{IDs: ids},
+	})
 
 	return nil
 }
