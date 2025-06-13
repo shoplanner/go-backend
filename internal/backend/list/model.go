@@ -87,7 +87,9 @@ type ProductList struct {
 func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member, error) {
 	f, ch := CheckRole(userID, role)
 	err := f(l.Members)
+
 	member := <-ch
+
 	if err != nil {
 		return member, err
 	}
@@ -95,31 +97,54 @@ func (l ProductList) CheckRole(userID id.ID[user.User], role MemberType) (Member
 	return member, nil
 }
 
+type FullUpdateChange struct {
+	change
+	ProductList
+}
+
 type ProductsAddedChange struct {
+	change
+
 	Products []ProductState `json:"products"` // done
 }
 
 type ProductsRemovedChange struct {
+	change
+
 	IDs []id.ID[product.Product] `json:"ids"` // done
 }
 
 type ListOptionsChange struct { //nolint:revive
+	change
+
 	NewOptions ListOptions `json:"new_options"` // done
 }
 
-type ListDeletedChange struct{} //nolint:revive // done
+type ListDeletedChange struct{ change } //nolint:revive // done
 
 type MembersAddedChange struct {
+	change
+
 	NewMembers []Member `json:"new_members"` // skipped
 }
 
 type MembersDeletedChange struct {
+	change
+
 	UserIDs []id.ID[user.User] `json:"user_ids"` // skipped
 }
 
 type StateUpdatedChange struct {
+	change
+
 	ProductID id.ID[product.Product] `json:"product_id"`
 	State     ProductState           `json:"state"`
+}
+
+type StatesReorderedChange struct {
+	change
+
+	IDs []id.ID[product.Product] `json:"ids"`
 }
 
 // ENUM(full=1,
@@ -133,8 +158,12 @@ type StateUpdatedChange struct {
 // stateUpdated)
 type EventType int32
 
+type change interface {
+	isChange()
+}
+
 type Change struct {
-	Data any       `json:"data"`
+	Data change    `json:"data"`
 	Type EventType `json:"type"`
 }
 
@@ -164,6 +193,8 @@ func CheckRole(userID id.ID[user.User], role MemberType) (RoleCheckFunc, <-chan 
 		if idx == -1 {
 			return fmt.Errorf("%w: user %s is not belongs to list", myerr.ErrForbidden, userID)
 		}
+
+		member = members[idx]
 
 		if role < members[idx].Role {
 			return fmt.Errorf("%w: role of user %s is not enough", myerr.ErrForbidden, userID)

@@ -55,8 +55,8 @@ type ProductList struct {
 	UpdatedAt time.Time           `gorm:"notNull"`
 	CreatedAt time.Time           `gorm:"notNull"`
 	Title     string              `gorm:"notNull,size:255"`
-	Members   []ProductListMember `gorm:"foreignKey:ListID"`
-	States    []ProductListState  `gorm:"foreignKey:ListID"`
+	Members   []ProductListMember `gorm:"foreignKey:ListID;constraint:OnDelete:CASCADE"`
+	States    []ProductListState  `gorm:"foreignKey:ListID;constraint:OnDelete:CASCADE"`
 }
 
 type Repo struct {
@@ -178,7 +178,7 @@ func (r *Repo) GetAndDeleteList(
 		}
 
 		//nolint:exhaustruct
-		err = tx.WithContext(ctx).Delete(list.ProductList{ID: listID}).Error
+		err = tx.WithContext(ctx).Delete(&ProductList{ID: listID.String()}).Error
 		if err != nil {
 			return fmt.Errorf("can't delete product list %s: %w", listID, err)
 		}

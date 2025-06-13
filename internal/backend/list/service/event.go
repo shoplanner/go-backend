@@ -59,7 +59,7 @@ func (s *Service) ListenEvents(
 	provider.ch <- list.Event{
 		ListID: listID,
 		Change: list.Change{
-			Data: currentList,
+			Data: list.FullUpdateChange{ProductList: currentList},
 			Type: list.EventTypeFull,
 		},
 		Member: nil, // no real change here
@@ -96,17 +96,13 @@ func (s *Service) StopListenEvents(
 func (s *Service) sendUpdateEvent(
 	listID id.ID[list.ProductList],
 	member list.Member,
-	eventType list.EventType,
-	change any,
+	change list.Change,
 ) {
 	s.channelsLock.RLock()
 	defer s.channelsLock.RUnlock()
 
 	event := list.Event{
-		Change: list.Change{
-			Data: change,
-			Type: eventType,
-		},
+		Change: change,
 		ListID: listID,
 		Member: &member,
 	}

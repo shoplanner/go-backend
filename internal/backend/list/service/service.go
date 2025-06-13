@@ -68,7 +68,7 @@ func (s *Service) ReoderStates(
 		return fmt.Errorf("failed to apply new order to list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeStatesReordered, ids)
+	s.sendUpdateEvent(listID, member, list.Change{Type: list.EventTypeStatesReordered, Data: list.StatesReorderedChange{IDs: ids}})
 
 	return nil
 }
@@ -145,8 +145,9 @@ func (s *Service) Update(
 		return model, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeOptsUpdated, list.ListOptionsChange{
-		NewOptions: options,
+	s.sendUpdateEvent(listID, member, list.Change{
+		Type: list.EventTypeOptsUpdated,
+		Data: list.ListOptionsChange{NewOptions: options},
 	})
 
 	return model, nil
@@ -157,14 +158,17 @@ func (s *Service) DeleteList(ctx context.Context, userID id.ID[user.User], listI
 	var err error
 
 	err = s.repo.GetAndDeleteList(ctx, listID, func(oldList list.ProductList) error {
-		member, err = oldList.CheckRole(userID, list.MemberTypeEditor)
-		return fmt.Errorf("role verification failed: %w", err)
+		member, err = oldList.CheckRole(userID, list.MemberTypeOwner)
+		if err != nil {
+			return fmt.Errorf("role verification failed: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("can't delete product list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeDeleted, list.ListDeletedChange{})
+	s.sendUpdateEvent(listID, member, list.Change{Type: list.EventTypeDeleted, Data: list.ListDeletedChange{}})
 
 	return nil
 }
@@ -239,8 +243,9 @@ func (s *Service) AppendMembers(
 		return list.ProductList{}, fmt.Errorf("can't update list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeMembersAdded, list.MembersAddedChange{
-		NewMembers: newMembers,
+	s.sendUpdateEvent(listID, member, list.Change{
+		Data: list.MembersAddedChange{NewMembers: newMembers},
+		Type: list.EventTypeMembersAdded,
 	})
 
 	return model, nil
@@ -292,8 +297,9 @@ func (s *Service) DeleteMembers(
 		return model, fmt.Errorf("can't delete members from list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeMembersRemoved, list.MembersDeletedChange{
-		UserIDs: toDelete,
+	s.sendUpdateEvent(listID, member, list.Change{
+		Data: list.MembersDeletedChange{UserIDs: toDelete},
+		Type: list.EventTypeMembersRemoved,
 	})
 
 	return model, nil
@@ -351,7 +357,10 @@ func (s *Service) AppendProducts(
 
 	s.log.Info().Stringer("list_id", listID).Stringer("user_id", userID).Any("model", model).Msg("updated")
 
-	s.sendUpdateEvent(listID, member, list.EventTypeProductsAdded, list.ProductsAddedChange{Products: newStates})
+	s.sendUpdateEvent(listID, member, list.Change{
+		Type: list.EventTypeProductsAdded,
+		Data: list.ProductsAddedChange{Products: newStates},
+	})
 
 	return model, nil
 }
@@ -403,9 +412,9 @@ func (s *Service) UpdateProductState(ctx context.Context,
 		return list.ProductState{}, fmt.Errorf("failed to update product state %s in list %s: %w", productID, listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeStateUpdated, list.StateUpdatedChange{
-		ProductID: productID,
-		State:     state,
+	s.sendUpdateEvent(listID, member, list.Change{
+		Type: list.EventTypeStateUpdated,
+		Data: list.StateUpdatedChange{ProductID: productID, State: state},
 	})
 
 	s.log.Info().Any("product_state", state).Stringer("product_id", productID).Stringer("user_id", userID).
@@ -460,8 +469,9 @@ func (s *Service) DeleteProducts(
 		return list.ProductList{}, fmt.Errorf("can't delete products from list %s: %w", listID, err)
 	}
 
-	s.sendUpdateEvent(listID, member, list.EventTypeProductsRemoved, list.ProductsRemovedChange{
-		IDs: toDelete,
+	s.sendUpdateEvent(listID, member, list.Change{
+		Type: list.EventTypeProductsRemoved,
+		Data: list.ProductsRemovedChange{IDs: toDelete},
 	})
 
 	return model, nil
