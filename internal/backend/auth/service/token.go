@@ -175,22 +175,22 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 	if err != nil {
 		return opts, fmt.Errorf("decoding access token failed: %w", err)
 	}
-
-	tokenID, state, err := s.accessRepo.GetByID(ctx, opts.ID)
-	if err != nil {
-		return opts, fmt.Errorf("can't get full access token from storage: %w", err)
-	}
-	if state.Status == auth.TokenStatusRevoked {
-		return opts, fmt.Errorf("%w: token %s already revoked", myerr.ErrForbidden, tokenID.ID)
-	}
-
-	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
-		return opts, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
-	}
-	if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
-		return opts, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
-	}
-
+	//
+	// tokenID, state, err := s.accessRepo.GetByID(ctx, opts.ID)
+	// if err != nil {
+	// 	return opts, fmt.Errorf("can't get full access token from storage: %w", err)
+	// }
+	// if state.Status == auth.TokenStatusRevoked {
+	// 	return opts, fmt.Errorf("%w: token %s already revoked", myerr.ErrForbidden, tokenID.ID)
+	// }
+	//
+	// if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
+	// 	return opts, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
+	// }
+	// if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
+	// 	return opts, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
+	// }
+	//
 	return opts, nil
 }
 

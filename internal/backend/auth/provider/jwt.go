@@ -89,7 +89,7 @@ func (p *JWTProvider) DecodeRefreshToken(_ context.Context, encoded auth.Encoded
 	var claims jwt.MapClaims
 	var opts auth.RefreshTokenOptions
 
-	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(_ *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(_ *jwt.Token) (any, error) {
 		return &p.privateKey.PublicKey, nil
 	})
 	if errors.Is(err, jwt.ErrTokenExpired) {
