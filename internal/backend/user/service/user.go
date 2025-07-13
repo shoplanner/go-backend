@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -46,6 +47,11 @@ func NewService(userRepo repo, hash hashMaster) *Service {
 func (s *Service) Create(ctx context.Context, options user.CreateOptions) (user.User, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	_, err := s.userRepo.GetByLogin(ctx, options.Login)
+	if err == nil {
+		return user.User{}, errors.New("user exists")
+	}
 
 	if err := s.validator.StructCtx(ctx, options); err != nil {
 		return user.User{}, fmt.Errorf("%w: %w", myerr.ErrInvalidArgument, err)

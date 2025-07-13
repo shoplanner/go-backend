@@ -10,9 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	stdLog "log"
 	"net"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -23,7 +21,6 @@ import (
 	"github.com/rs/zerolog"
 	gormMySQL "gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	"go-backend/internal/backend/auth"
 	authAPI "go-backend/internal/backend/auth/api"
@@ -79,13 +76,13 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 
-	gormLog := logger.New(stdLog.New(os.Stdout, "\n", stdLog.LstdFlags), logger.Config{
-		Colorful:                  true,
-		IgnoreRecordNotFoundError: false,
-		ParameterizedQueries:      false,
-		LogLevel:                  logger.Info,
-		SlowThreshold:             0,
-	})
+	// gormLog := logger.New(stdLog.New(os.Stdout, "\n", stdLog.LstdFlags), logger.Config{
+	// 	Colorful:                  true,
+	// 	IgnoreRecordNotFoundError: false,
+	// 	ParameterizedQueries:      false,
+	// 	LogLevel:                  logger.Info,
+	// 	SlowThreshold:             0,
+	// })
 
 	appCfg, err := config.ParseConfig(*configPath)
 	if err != nil {
@@ -142,7 +139,7 @@ func main() {
 	doltCfg.DBName = envCfg.Database.Name
 	gormDB, err := gorm.Open(
 		gormMySQL.Open(doltCfg.FormatDSN()),
-		&gorm.Config{Logger: gormLog},
+		// &gorm.Config{Logger: gormLog},
 	)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("gorm: connecting to database")

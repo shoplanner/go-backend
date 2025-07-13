@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -89,7 +88,6 @@ func (h *Handler) AppendProductList(ctx *gin.Context) {
 	}
 
 	rawListID := ctx.Param("id")
-	fmt.Println(rawListID)
 
 	listUUID, err := uuid.Parse(rawListID)
 	if err != nil {

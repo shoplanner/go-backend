@@ -49,6 +49,7 @@ func (s *Service) AddProducts(
 	favorite.List,
 	error,
 ) {
+	fmt.Println(productIDs)
 	model, err := s.repoGetAndUpdate(ctx, listID, func(list favorite.List) (favorite.List, error) {
 		if err := list.AllowedToEdit(userID); err != nil {
 			return favorite.List{}, fmt.Errorf("user %s is not allowed to edit list %s: %w", userID, listID, err)
