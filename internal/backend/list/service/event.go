@@ -83,6 +83,8 @@ func (s *Service) StopListenEvents(
 		listID: listID,
 	}
 
+	s.log.Info().Any("provided_id", id).Msg("closing event channel")
+
 	_, found := s.channels[id]
 	if found {
 		s.channels[id].close()
