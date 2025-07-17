@@ -12,8 +12,8 @@ import (
 )
 
 type providerID struct {
-	userID id.ID[user.User]
-	listID id.ID[list.ProductList]
+	UserID id.ID[user.User]        `json:"user_id"`
+	ListID id.ID[list.ProductList] `json:"list_id"`
 }
 
 type eventProvider struct {
@@ -48,7 +48,7 @@ func (s *Service) ListenEvents(
 
 	s.channelsLock.Lock()
 
-	id := providerID{userID: userID, listID: listID}
+	id := providerID{UserID: userID, ListID: listID}
 
 	provider, found := s.channels[id]
 	if !found {
@@ -79,8 +79,8 @@ func (s *Service) StopListenEvents(
 	defer s.channelsLock.Unlock()
 
 	id := providerID{
-		userID: userID,
-		listID: listID,
+		UserID: userID,
+		ListID: listID,
 	}
 
 	s.log.Info().Any("provided_id", id).Msg("closing event channel")
@@ -112,7 +112,7 @@ func (s *Service) sendUpdateEvent(
 	s.log.Info().Any("event", event).Msg("sending event")
 
 	for id, provider := range s.channels {
-		if id.listID != listID || member.UserID == id.userID {
+		if id.ListID != listID || member.UserID == id.UserID {
 			continue
 		}
 
