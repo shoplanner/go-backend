@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 
 	"go-backend/internal/backend/auth"
 	"go-backend/internal/backend/user"
@@ -254,18 +253,18 @@ func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceI
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't encode token: %w", err)
 	}
-
-	_, err = lo.NewTransaction[any]().Then(
-		func(_ any) (any, error) { return nil, s.refreshRepo.Set(ctx, refreshToken.TokenID, refreshToken.State) },
-		func(_ any) any { return s.refreshRepo.DeleteByID(ctx, refreshToken.ID) },
-	).Then(
-		func(_ any) (any, error) { return nil, s.accessRepo.Set(ctx, accessToken.TokenID, accessToken.State) },
-		func(_ any) any { return s.accessRepo.DeleteByID(ctx, accessToken.ID) },
-	).Process(nil)
-	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
-			fmt.Errorf("can't save tokens to storage: %w", err)
-	}
+	//
+	// _, err = lo.NewTransaction[any]().Then(
+	// 	func(_ any) (any, error) { return nil, s.refreshRepo.Set(ctx, refreshToken.TokenID, refreshToken.State) },
+	// 	func(_ any) any { return s.refreshRepo.DeleteByID(ctx, refreshToken.ID) },
+	// ).Then(
+	// 	func(_ any) (any, error) { return nil, s.accessRepo.Set(ctx, accessToken.TokenID, accessToken.State) },
+	// 	func(_ any) any { return s.accessRepo.DeleteByID(ctx, accessToken.ID) },
+	// ).Process(nil)
+	// if err != nil {
+	// 	return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
+	// 		fmt.Errorf("can't save tokens to storage: %w", err)
+	// }
 
 	return accessToken, refreshToken, userModel.ID, nil
 }
