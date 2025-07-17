@@ -109,13 +109,11 @@ func (s *Service) sendUpdateEvent(
 
 	s.log.Info().Any("event", event).Msg("sending event")
 
-	go func() {
-		for id, provider := range s.channels {
-			if id.listID != listID || member.UserID == id.userID {
-				continue
-			}
-
-			provider.ch <- event
+	for id, provider := range s.channels {
+		if id.listID != listID || member.UserID == id.userID {
+			continue
 		}
-	}()
+
+		provider.ch <- event
+	}
 }

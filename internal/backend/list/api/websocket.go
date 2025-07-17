@@ -90,6 +90,10 @@ func (s *WebSocket) Listen(ctx *gin.Context) {
 			err = conn.WriteJSON(event)
 			if err != nil {
 				s.HandleError(ctx, fmt.Errorf("writing JSON message: %w", err))
+				err = s.list.StopListenEvents(userID, listID)
+				if err != nil {
+					s.log.Err(err).Msg("closing event channel")
+				}
 				return
 			}
 		case <-closeChan:
