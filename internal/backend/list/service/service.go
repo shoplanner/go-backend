@@ -421,7 +421,7 @@ func (s *Service) UpdateProductState(ctx context.Context,
 	})
 
 	s.log.Info().Any("product_state", state).Stringer("product_id", productID).Stringer("user_id", userID).
-		Msg("updating product state")
+		Msg("updated product state")
 
 	return state, nil
 }
