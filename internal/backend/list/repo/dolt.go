@@ -55,8 +55,8 @@ type ProductList struct {
 	UpdatedAt time.Time           `gorm:"notNull"`
 	CreatedAt time.Time           `gorm:"notNull"`
 	Title     string              `gorm:"notNull,size:255"`
-	Members   []ProductListMember `gorm:"foreignKey:ListID;constraint:OnDelete:CASCADE"`
-	States    []ProductListState  `gorm:"foreignKey:ListID;constraint:OnDelete:CASCADE"`
+	Members   []ProductListMember `gorm:"foreignKey:ListID constraint:OnDelete:CASCADE"`
+	States    []ProductListState  `gorm:"foreignKey:ListID"`
 }
 
 type Repo struct {
@@ -89,6 +89,7 @@ func (r *Repo) GetListMetaByUserID(ctx context.Context, userID id.ID[user.User])
 		Preload("Members.User").
 		Preload("States").
 		Preload("States.Product.Category").
+		Preload("States.Product.Forms").
 		Preload("States.ReplacementProduct").
 		Preload("States.ReplacementProduct.Category").
 		Where("id in ?", relatedListIDs).
