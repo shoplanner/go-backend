@@ -89,6 +89,7 @@ func (s *Service) ValidatePassword(ctx context.Context, login user.Login, pass s
 
 	attemptedUser, err := s.userRepo.GetByLogin(ctx, login)
 	if err != nil {
+		log.Error().Str("login", string(attemptedUser.Login)).Msg("get db error")
 		return user.User{}, user.ErrAuthorizationFailure
 	}
 
