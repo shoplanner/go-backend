@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -50,7 +49,7 @@ func (s *Service) Create(ctx context.Context, options user.CreateOptions) (user.
 
 	_, err := s.userRepo.GetByLogin(ctx, options.Login)
 	if err == nil {
-		return user.User{}, errors.New("user exists")
+		return user.User{}, fmt.Errorf("%w: user exists", myerr.ErrAlreadyExists)
 	}
 
 	if err := s.validator.StructCtx(ctx, options); err != nil {
@@ -89,8 +88,7 @@ func (s *Service) ValidatePassword(ctx context.Context, login user.Login, pass s
 
 	attemptedUser, err := s.userRepo.GetByLogin(ctx, login)
 	if err != nil {
-		log.Error().Str("login", string(attemptedUser.Login)).Msg("get db error")
-		return user.User{}, user.ErrAuthorizationFailure
+		return user.User{}, fmt.Errorf("failed to get user from repo: %w", err)
 	}
 
 	if !s.hash.Compare(pass, string(attemptedUser.PasswordHash)) {

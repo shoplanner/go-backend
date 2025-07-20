@@ -832,6 +832,36 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/shopmap/id/{id}/join": {
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ShopMap"
+                ],
+                "summary": "only reorder categories in given shop map",
+                "operationId": "shopmap-join",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of shop map",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/shopmap/id/{id}/reorder": {
             "patch": {
                 "security": [

@@ -6,22 +6,29 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/shopmap/service"
+	"go-backend/internal/backend/user"
+	"go-backend/pkg/api/rest/rerr"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
 )
 
 type Handler struct {
+	rerr.BaseHandler
+
 	service *service.Service
 }
 
-func RegisterREST(r *gin.RouterGroup, service *service.Service) {
-	h := Handler{service: service}
+func RegisterREST(r *gin.RouterGroup, service *service.Service, log zerolog.Logger) {
+	log = log.With().Str("component", "shopmap.rest").Logger()
+
+	h := Handler{service: service, BaseHandler: rerr.NewBaseHandler(log)}
 
 	group := r.Group("/shopmap")
 
@@ -33,6 +40,7 @@ func RegisterREST(r *gin.RouterGroup, service *service.Service) {
 	idGroup.DELETE("/:id", h.DeleteMap)
 	idGroup.PUT("/:id", h.UpdateMap)
 	idGroup.PATCH("/:id/reorder", h.ReorderMap)
+	idGroup.PATCH("/:id/join", h.JoinMap)
 }
 
 // @Summary	Creates new shop map
@@ -206,4 +214,28 @@ func (h *Handler) ReorderMap(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, shopMap)
+}
+
+// @Summary	only reorder categories in given shop map
+// @ID			shopmap-join
+// @Tags		ShopMap
+//
+// @Param		id			path	string		true	"id of shop map"
+// @Accept		json
+// @Produce	json
+// @Router		/shopmap/id/{id}/join [patch]
+// @Security ApiKeyAuth
+func (h *Handler) JoinMap(c *gin.Context) {
+	mapID, ok := rerr.PathID[id.ID[shopmap.ShopMap]](c)
+	if !ok {
+		return
+	}
+
+	model, err := h.service.AddViewerList(c.Copy(), id.ID[shopmap.ShopMap](mapID), []id.ID[user.User]{api.GetUserID(c)})
+	if err != nil {
+		h.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model)
 }

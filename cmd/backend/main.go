@@ -117,6 +117,7 @@ func main() {
 		Addr:                 envCfg.Database.Host,
 		AllowNativePasswords: true,
 		ParseTime:            true,
+		DBName:               envCfg.Database.Name,
 	}
 
 	// nolint:exhaustruct
@@ -224,7 +225,7 @@ func main() {
 	apiGroup.Use(jwtMiddleware.Middleware())
 
 	productAPI.RegisterREST(apiGroup, productService)
-	shopMapAPI.RegisterREST(apiGroup, shopMapService)
+	shopMapAPI.RegisterREST(apiGroup, shopMapService, parentLogger)
 	favoritesAPI.RegisterREST(apiGroup, favoriteService, parentLogger.With().Logger())
 	listAPI.RegisterREST(apiGroup, listService, parentLogger)
 

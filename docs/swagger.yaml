@@ -630,6 +630,25 @@ paths:
       summary: fully updates shop map
       tags:
       - ShopMap
+  /shopmap/id/{id}/join:
+    patch:
+      consumes:
+      - application/json
+      operationId: shopmap-join
+      parameters:
+      - description: id of shop map
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: only reorder categories in given shop map
+      tags:
+      - ShopMap
   /shopmap/id/{id}/reorder:
     patch:
       consumes:

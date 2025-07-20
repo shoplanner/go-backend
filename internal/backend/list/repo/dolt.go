@@ -20,6 +20,7 @@ import (
 	"go-backend/pkg/god"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
+	"go-backend/pkg/mymysql"
 )
 
 type ProductListState struct {
@@ -157,7 +158,7 @@ func (r *Repo) GetAndUpdate(
 		return err
 	})
 	if err != nil {
-		return list.ProductList{}, fmt.Errorf("transaction failed: %w", err)
+		return list.ProductList{}, fmt.Errorf("%w: transaction failed: %w", mymysql.GetType(err), err)
 	}
 
 	return model, nil

@@ -74,13 +74,6 @@ func (s *Service) AddViewerList(
 	mapID id.ID[shopmap.ShopMap],
 	viewerIDs []id.ID[user.User],
 ) (shopmap.ShopMap, error) {
-	for _, viewerID := range viewerIDs {
-		_, err := s.users.GetByID(ctx, viewerID)
-		if err != nil {
-			return shopmap.ShopMap{}, fmt.Errorf("can't get user %s: %w", viewerID, err)
-		}
-	}
-
 	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		shopMap.ViewerIDList = append(shopMap.ViewerIDList, viewerIDs...)
 
@@ -150,8 +143,8 @@ func (s *Service) UpdateMap(
 
 	return s.repoGetAndUpdate(ctx, mapID, func(shopMap shopmap.ShopMap) (shopmap.ShopMap, error) {
 		s.log.Debug().Stringer("map_id", mapID).Any("shopmap", shopMap).Msg("got shopmap from repo")
-		if userID != shopMap.OwnerID {
-			return shopMap, fmt.Errorf("%w: only owner can delete shop map", myerr.ErrForbidden)
+		if userID != shopMap.OwnerID && !slices.Contains(shopMap.ViewerIDList, userID) {
+			return shopMap, fmt.Errorf("%w: only members can modify shop map", myerr.ErrForbidden)
 		}
 
 		shopMap.Options = cfg
