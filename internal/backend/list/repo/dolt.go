@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"go-backend/internal/backend/list"
 	"go-backend/internal/backend/product"
@@ -284,7 +285,7 @@ func (r *Repo) getProductList(ctx context.Context, tx *gorm.DB, listID id.ID[lis
 ) {
 	entity := ProductList{ID: listID.String()} //nolint:exhaustruct
 
-	err := tx.WithContext(ctx).
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
 		Preload("Members").
 		Preload("Members.User").
 		Preload("States").

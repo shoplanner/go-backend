@@ -59,7 +59,9 @@ const clientName = "shoplanner"
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	parentLogger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Caller().Logger()
+	wc := zerolog.NewConsoleWriter()
+	wc.NoColor = true
+	parentLogger := zerolog.New(wc).With().Timestamp().Caller().Logger()
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	if err := godotenv.Load(); err != nil {
