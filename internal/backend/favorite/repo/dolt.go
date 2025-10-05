@@ -42,8 +42,8 @@ type FavoriteMember struct {
 
 type FavoriteProduct struct {
 	ID             string       `gorm:"primaryKey;size:36;notNull"`
-	ProductID      string       `gorm:"size:36;notNull;uniqueIndex:idx_favorite_product"`
-	FavoriteListID string       `gorm:"size:36;notNull;uniqueIndex:idx_favorite_product"`
+	ProductID      string       `gorm:"size:36;notNull"`
+	FavoriteListID string       `gorm:"size:36;notNull"`
 	Product        repo.Product `gorm:"references:ID"`
 	CreatedAt      time.Time    `gorm:"notNull"`
 	UpdatedAt      time.Time    `gorm:"notNull"`

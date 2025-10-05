@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -20,14 +19,6 @@ type userService interface {
 	GetByID(context.Context, id.ID[user.User]) (user.User, error)
 }
 
-type tokenRepo[T any] interface {
-	Set(context.Context, auth.TokenID[T], auth.TokenState) error
-	GetByID(context.Context, id.ID[T]) (auth.TokenID[T], auth.TokenState, error)
-	DeleteByID(context.Context, id.ID[T]) error
-	RevokeByDeviceID(context.Context, id.ID[user.User], auth.DeviceID) error
-	RevokeByUserID(context.Context, id.ID[user.User]) error
-}
-
 type tokenEncoder interface {
 	EncodeAccessToken(context.Context, auth.AccessTokenOptions) (auth.EncodedAccessToken, error)
 	EncodeRefreshToken(context.Context, auth.RefreshTokenOptions) (auth.EncodedRefreshToken, error)
@@ -36,13 +27,11 @@ type tokenEncoder interface {
 }
 
 type Service struct {
-	users       userService
-	refreshRepo tokenRepo[auth.RefreshToken]
-	accessRepo  tokenRepo[auth.AccessToken]
-	lock        sync.RWMutex
-	options     Options
-	encoder     tokenEncoder
-	log         zerolog.Logger
+	users   userService
+	lock    sync.RWMutex
+	options Options
+	encoder tokenEncoder
+	log     zerolog.Logger
 }
 
 type Options struct {
@@ -53,19 +42,15 @@ type Options struct {
 func New(
 	log zerolog.Logger,
 	users userService,
-	refreshRepo tokenRepo[auth.RefreshToken],
-	accessRepo tokenRepo[auth.AccessToken],
 	encoder tokenEncoder,
 	options Options,
 ) *Service {
 	return &Service{
-		users:       users,
-		refreshRepo: refreshRepo,
-		accessRepo:  accessRepo,
-		lock:        sync.RWMutex{},
-		options:     options,
-		encoder:     encoder,
-		log:         log.With().Str("component", "auth").Logger(),
+		users:   users,
+		lock:    sync.RWMutex{},
+		options: options,
+		encoder: encoder,
+		log:     log.With().Str("component", "auth").Logger(),
 	}
 }
 
@@ -108,33 +93,6 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 
 	s.log.Debug().Any("opts", opts).Msg("decoded token")
 
-	_, state, err := s.refreshRepo.GetByID(ctx, opts.ID)
-	if err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
-			fmt.Errorf("can't get token info from storage: %w", err)
-	}
-
-	s.log.Debug().Any("state", state).Msg("got token state from storage")
-
-	if state.Status == auth.TokenStatusRevoked {
-		// refresh token was stolen
-		// emergency close all sections
-		var errs []error
-
-		s.log.Error().Any("state", state).Msg("token already revoked, closing all sections")
-
-		if deleteError := s.accessRepo.RevokeByUserID(ctx, opts.UserID); deleteError != nil {
-			errs = append(errs, fmt.Errorf("can't revoke all refresh tokens for user id %s: %w", opts.UserID, err))
-		}
-		if deleteError := s.refreshRepo.RevokeByUserID(ctx, opts.UserID); deleteError != nil {
-			errs = append(errs, fmt.Errorf("can't revoke all access tokens for user id %s: %w", opts.UserID, deleteError))
-		}
-
-		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, errors.Join(
-			append(errs, fmt.Errorf("%w: token was already revoked", myerr.ErrForbidden))...,
-		)
-	}
-
 	if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
 		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
 			fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
@@ -151,14 +109,6 @@ func (s *Service) Refresh(ctx context.Context, encodedRefreshToken auth.EncodedR
 	}
 
 	s.log.Debug().Ctx(ctx).Any("user", loggedUser).Msg("identified user")
-
-	if err = s.refreshRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't revoke: %w", err)
-	}
-
-	if err = s.accessRepo.RevokeByDeviceID(ctx, opts.UserID, opts.DeviceID); err != nil {
-		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't revoke access tokens: %w", err)
-	}
 
 	return s.getNewTokens(ctx, loggedUser, opts.DeviceID)
 }
@@ -194,13 +144,7 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 }
 
 func (s *Service) Logout(ctx context.Context, userID id.ID[user.User], deviceID auth.DeviceID) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	return errors.Join(
-		s.accessRepo.RevokeByDeviceID(ctx, userID, deviceID),
-		s.refreshRepo.RevokeByDeviceID(ctx, userID, deviceID),
-	)
+	return nil
 }
 
 func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceID auth.DeviceID) (

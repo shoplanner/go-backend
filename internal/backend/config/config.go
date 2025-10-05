@@ -28,7 +28,6 @@ type AuthCfg struct {
 
 type Env struct {
 	Database DatabaseEnv
-	Redis    RedisEnv
 	Auth     AuthEnv
 }
 
@@ -36,19 +35,8 @@ type AuthEnv struct {
 	PrivateKey string `env:"AUTH_PRIVATE_KEY" json:"-"`
 }
 
-type RedisEnv struct {
-	Addr     string `env:"REDIS_ADDR"`
-	Password string `env:"REDIS_PASS" json:"-"`
-	Net      string `env:"REDIS_NET"`
-	User     string `env:"REDIS_USER" json:"-"`
-}
-
 type DatabaseEnv struct {
-	Password string `env:"DATABASE_PASSWORD" json:"-"`
-	Host     string `env:"DATABASE_HOST,required"`
-	User     string `env:"DATABASE_USER" json:"-"`
-	Name     string `env:"DATABASE_NAME"`
-	Net      string `env:"DATABASE_NET"`
+	Path string `env:"DB_PATH"`
 }
 
 func ParseConfig(path string) (Config, error) {
