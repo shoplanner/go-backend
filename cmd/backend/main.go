@@ -10,22 +10,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os/signal"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
-	"github.com/redis/rueidis"
 	"github.com/rs/zerolog"
-	gormMySQL "gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"go-backend/internal/backend/auth"
 	authAPI "go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/auth/provider"
-	authRepo "go-backend/internal/backend/auth/repo"
 	authService "go-backend/internal/backend/auth/service"
 	"go-backend/internal/backend/config"
 	favoritesAPI "go-backend/internal/backend/favorite/api"
@@ -47,8 +44,6 @@ import (
 	"go-backend/pkg/bd"
 	"go-backend/pkg/hashing"
 )
-
-const clientName = "shoplanner"
 
 // @version					0.0.1
 // @title						ShoPlanner
@@ -78,14 +73,6 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 
-	// gormLog := logger.New(stdLog.New(os.Stdout, "\n", stdLog.LstdFlags), logger.Config{
-	// 	Colorful:                  true,
-	// 	IgnoreRecordNotFoundError: false,
-	// 	ParameterizedQueries:      false,
-	// 	LogLevel:                  logger.Info,
-	// 	SlowThreshold:             0,
-	// })
-
 	appCfg, err := config.ParseConfig(*configPath)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't load config")
@@ -111,75 +98,24 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// nolint:exhaustruct
-	doltCfg := mysql.Config{
-		User:                 envCfg.Database.User,
-		Passwd:               envCfg.Database.Password,
-		Net:                  envCfg.Database.Net,
-		Addr:                 envCfg.Database.Host,
-		AllowNativePasswords: true,
-		ParseTime:            true,
-		DBName:               envCfg.Database.Name,
+	db, err := sql.Open("sqlite3", envCfg.Database.Path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	gormDB, err := gorm.Open(sqlite.Open(envCfg.Database.Path), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// nolint:exhaustruct
-	redisClient, err := rueidis.NewClient(rueidis.ClientOption{
-		Username:    envCfg.Redis.User,
-		Password:    envCfg.Redis.Password,
-		InitAddress: []string{envCfg.Redis.Addr},
-		ClientName:  clientName,
-	})
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("creating redis client")
-	}
-
-	sqlDB, err := sql.Open("mysql", doltCfg.FormatDSN())
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("can't connect to database")
-	}
-	sqlAdapter := bd.NewDB(sqlDB, parentLogger.With().Logger())
-
-	doltCfg.DBName = envCfg.Database.Name
-	gormDB, err := gorm.Open(
-		gormMySQL.Open(doltCfg.FormatDSN()),
-		// &gorm.Config{Logger: gormLog},
-	)
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("gorm: connecting to database")
-	}
-
-	if err = sqlDB.PingContext(ctx); err != nil {
-		parentLogger.Fatal().Err(err).Caller().Stack().Msg("ping DB")
-	} else {
-		parentLogger.Info().Caller().Msg("DoltDB ping OK")
-	}
-
-	_, err = sqlAdapter.ExecContext(ctx, fmt.Sprintf("create database if not exists %s", envCfg.Database.Name))
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("initializing database")
-	}
-	_, err = sqlDB.ExecContext(ctx, fmt.Sprintf(`USE %s`, envCfg.Database.Name))
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("can't use database")
-	}
-	_, err = sqlDB.ExecContext(ctx, "set global local_infile=1")
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("enabling load data in DB")
-	}
+	sqlAdapter := bd.NewDB(db, parentLogger)
 
 	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing user repo")
 	}
-	accessRepo, err := authRepo.NewRedisRepo[auth.AccessToken](ctx, redisClient)
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("initializing access tokens repo")
-	}
-	refreshRepo, err := authRepo.NewRedisRepo[auth.RefreshToken](ctx, redisClient)
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("initializing refresh tokens repo")
-	}
-	shopMapRepo, err := shopMapRepo.NewShopMapRepo(ctx, sqlDB)
+	shopMapRepo, err := shopMapRepo.NewShopMapRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
@@ -201,8 +137,6 @@ func main() {
 	authService := authService.New(
 		parentLogger,
 		userService,
-		refreshRepo,
-		accessRepo,
 		provider.NewJWT(authPrivateKey),
 		authService.Options{
 			AccessTokenExpires:  appCfg.Auth.AccessTokenLiveTime,
