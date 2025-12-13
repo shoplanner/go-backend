@@ -109,6 +109,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	gormDB = gormDB.Debug()
+
 	sqlAdapter := bd.NewDB(db, parentLogger)
 
 	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
@@ -185,9 +187,19 @@ func main() {
 	parentLogger.Info().Msg("server stopped")
 }
 
+var ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA")
+
 func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemEncoded))
 	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
 
-	return privateKey.(*ecdsa.PrivateKey), err
+	parsedKey, parsed := privateKey.(*ecdsa.PrivateKey)
+	if !parsed {
+		return nil, ErrUnexpectedPrivateKeyType
+	}
+
+	return parsedKey, nil
 }

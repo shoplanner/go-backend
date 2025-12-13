@@ -42,7 +42,7 @@ func NewShopMapRepo(ctx context.Context, db *sql.DB) (*ShopMapRepo, error) {
 
 // Create implements service.repo.
 func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("DoltDB: can't start transaction: %w", err)
 	}
@@ -95,7 +95,7 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 }
 
 func (s *ShopMapRepo) Delete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("can't start DoltDB transaction: %w", err)
 	}

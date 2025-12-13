@@ -25,3 +25,7 @@ tasks:
     cmds:
       - swag fmt
       - go fmt ./...
+  run:
+    deps: [build]
+    cmds:
+      - bin/backend --config config/backend.yml

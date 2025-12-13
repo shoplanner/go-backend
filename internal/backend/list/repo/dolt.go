@@ -127,6 +127,7 @@ func (r *Repo) GetAndUpdate(
 	var model list.ProductList
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
+
 		model, err = r.getProductList(ctx, tx, listID)
 		if err != nil {
 			return err
