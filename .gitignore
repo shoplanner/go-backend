@@ -7,3 +7,4 @@ dolt/**
 **.exe
 redis_data/**
 **.db
+**.tar
