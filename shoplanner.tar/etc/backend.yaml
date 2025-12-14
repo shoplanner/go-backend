@@ -1,0 +1,8 @@
+listener:
+  port: 3000
+  host: 0.0.0.0
+  net: tcp
+auth:
+  # dev values!
+  refresh_token_livetime: 4000h
+  access_token_livetime: 24h

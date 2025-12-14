@@ -6,3 +6,4 @@ bin/**
 dolt/**
 **.exe
 redis_data/**
+**.db

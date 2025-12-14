@@ -29,3 +29,6 @@ tasks:
     deps: [build]
     cmds:
       - bin/backend --config config/backend.yml
+  export:
+    cmds:
+      - docker buildx build --output=type=local,dest=shoplanner.tar -t shoplanner-backend:latest .
