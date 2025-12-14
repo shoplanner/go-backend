@@ -127,6 +127,7 @@ func (r *Repo) GetAndUpdate(
 	var model list.ProductList
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
+
 		model, err = r.getProductList(ctx, tx, listID)
 		if err != nil {
 			return err
@@ -139,6 +140,16 @@ func (r *Repo) GetAndUpdate(
 
 		entity := listToEntity(model)
 		query := ProductList{ID: listID.String()} //nolint:exhaustruct
+
+		err = tx.WithContext(ctx).Where("list_id = ?", listID).Delete(&ProductListMember{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("list_id = ?", listID).Delete(&ProductListState{}).Error
+		if err != nil {
+			return err
+		}
 
 		err = tx.WithContext(ctx).Model(&query).Association("Members").Unscoped().Replace(entity.Members)
 		if err != nil {
