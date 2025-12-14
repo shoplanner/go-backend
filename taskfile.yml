@@ -31,4 +31,4 @@ tasks:
       - bin/backend --config config/backend.yml
   export:
     cmds:
-      - docker buildx build -o type=tar,dest=- -t shoplanner-backend:latest . > shoplanner.tar
+      - docker buildx build -o type=docker,dest=- -t shoplanner-backend:latest . > shoplanner.tar
