@@ -2,7 +2,7 @@ FROM golang:1.25.5-alpine AS build
 
 WORKDIR /app
 
-RUN apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
+RUN apk add --update --no-cache python3 build-base sqlite-dev && ln -sf python3 /usr/bin/python
 RUN go install github.com/go-task/task/v3/cmd/task@v3.40.1
 
 COPY taskfile.yml .
@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # RUN task generate
-RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 task build
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=1 task build
 
 FROM scratch AS prod
 COPY --from=build /app/bin/backend /bin/shoplanner
