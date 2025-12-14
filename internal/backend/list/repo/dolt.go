@@ -141,6 +141,16 @@ func (r *Repo) GetAndUpdate(
 		entity := listToEntity(model)
 		query := ProductList{ID: listID.String()} //nolint:exhaustruct
 
+		err = tx.WithContext(ctx).Where("list_id = ?", listID).Delete(&ProductListMember{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("list_id = ?", listID).Delete(&ProductListState{}).Error
+		if err != nil {
+			return err
+		}
+
 		err = tx.WithContext(ctx).Model(&query).Association("Members").Unscoped().Replace(entity.Members)
 		if err != nil {
 			return fmt.Errorf("can't update members of list %s: %w", listID, err)

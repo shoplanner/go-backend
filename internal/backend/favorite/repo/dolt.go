@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"go-backend/internal/backend/favorite"
 	"go-backend/internal/backend/product"
@@ -190,20 +191,34 @@ func (r *Repo) GetAndUpdate(
 		entity = modelToEntity(model)
 		query := &FavoriteList{ID: listID.String()} //nolint:exhaustruct
 
+		err = tx.WithContext(ctx).Unscoped().Where("favorite_list_id", listID).Delete(&FavoriteMember{}).Error
+		if err != nil {
+			return err
+		}
+
 		err = tx.WithContext(ctx).
 			Model(query).
 			Association("Members").
 			Unscoped().
-			Replace(entity.Members)
+			Append(entity.Members)
 		if err != nil {
 			return fmt.Errorf("can't update favorites list %s members: %w", listID, err)
 		}
 
 		err = tx.WithContext(ctx).
-			Model(query).
-			Association("Products").
 			Unscoped().
-			Replace(entity.Products)
+			Where("favorite_list_id = ?", listID).Delete(&FavoriteProduct{}).Error
+		if err != nil {
+			return fmt.Errorf("can't update favorites list %s products: %w", listID, err)
+		}
+
+		//nolint
+		err = tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "product_id"}, {Name: "favorite_list_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"updated_at"}),
+		}).
+			Create(entity.Products).
+			Error
 		if err != nil {
 			return fmt.Errorf("can't update favorites list %s products: %w", listID, err)
 		}

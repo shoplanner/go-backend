@@ -86,6 +86,7 @@ linters:
         - map
     exhaustruct:
       exclude:
+        - gorm
         - ^net/http.Client$
         - ^net/http.Cookie$
         - ^net/http.Request$
