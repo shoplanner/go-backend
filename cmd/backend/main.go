@@ -11,15 +11,17 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/syslog"
 	"net"
+	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	authAPI "go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/auth/provider"
@@ -54,14 +56,13 @@ import (
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	wc := zerolog.NewConsoleWriter()
-	wc.NoColor = true
-	parentLogger := zerolog.New(wc).With().Timestamp().Caller().Logger()
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-
-	if err := godotenv.Load(); err != nil {
-		parentLogger.Info().Err(err).Msg("can't load .env file")
+	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
+	if err != nil {
+		panic(err)
 	}
+
+	parentLogger := zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
 
@@ -77,7 +78,7 @@ func main() {
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't load config")
 	}
-	parentLogger.Info().Any("config", appCfg).Msg("Config loaded")
+	parentLogger.Info().Any("config", appCfg).Msg("loaded")
 
 	listener, err := net.Listen(appCfg.Service.Net, fmt.Sprintf("%s:%d", appCfg.Service.Host, appCfg.Service.Port))
 	if err != nil {
@@ -90,7 +91,12 @@ func main() {
 	}
 	parentLogger.Info().Any("env", envCfg).Msg("loaded env")
 
-	authPrivateKey, err := decodeECDSA(envCfg.Auth.PrivateKey)
+	privateKey, err := os.ReadFile(envCfg.Auth.PrivateKey)
+	if err != nil {
+		parentLogger.Err(err).Str("path", envCfg.Auth.PrivateKey).Msg("failed to read private key file")
+	}
+
+	authPrivateKey, err := decodeECDSA(string(privateKey))
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't parse private key for JWT tokens")
 	}
@@ -104,7 +110,7 @@ func main() {
 	}
 	defer db.Close()
 
-	gormDB, err := gorm.Open(sqlite.Open(envCfg.Database.Path), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(envCfg.Database.Path), &gorm.Config{Logger: logger.Discard})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -189,6 +195,10 @@ var ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA"
 
 func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemEncoded))
+	if block == nil || len(block.Bytes) == 0 {
+		return nil, errors.New("private key is invalid")
+	}
+
 	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)

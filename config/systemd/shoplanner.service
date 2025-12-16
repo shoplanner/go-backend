@@ -1,0 +1,31 @@
+[Unit]
+Description=Shoplanner backend service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Environment=DB_PATH=%S/shoplanner/shoplanner.db
+
+ExecStart=/usr/bin/shoplanner --config=%E/shoplanner/backend.yml
+Restart=on-failure
+RestartSec=3
+
+# Безопасность (разумный минимум)
+DynamicUser=yes
+User=shoplanner
+Group=shoplanner
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+# Логи
+StandardOutput=journal
+StandardError=journal
+
+StateDirectory=shoplanner
+ConfigurationDirectory=shoplanner
+
+[Install]
+WantedBy=multi-user.target

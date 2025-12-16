@@ -15,13 +15,9 @@ type DB struct {
 }
 
 func NewDB(db *sql.DB, log zerolog.Logger) *DB {
-	log.UpdateContext(func(c zerolog.Context) zerolog.Context {
-		c.Str("component", "general sql adapter")
-		return c
-	})
 	return &DB{
 		provider: db,
-		log:      log,
+		log:      log.With().Str("component", "db.sql").Logger(),
 	}
 }
 

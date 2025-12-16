@@ -32,7 +32,7 @@ type Env struct {
 }
 
 type AuthEnv struct {
-	PrivateKey string `env:"AUTH_PRIVATE_KEY" json:"-"`
+	PrivateKey string `env:"AUTH_PRIVATE_KEY" json:"private_key_path"`
 }
 
 type DatabaseEnv struct {
