@@ -3,15 +3,14 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
-	"gorm.io/gorm"
 
 	"go-backend/internal/backend/product"
 	"go-backend/pkg/date"
@@ -19,195 +18,132 @@ import (
 	"go-backend/pkg/id"
 )
 
-type Product struct {
-	ID         string           `gorm:"primaryKey;size:36"`
-	CreatedAt  time.Time        `gorm:"notNull"`
-	UpdatedAt  time.Time        `gorm:"notNull"`
-	Name       string           `gorm:"size:256;notNull"`
-	CategoryID sql.NullString   `gorm:"size:36"`
-	Category   *ProductCategory `gorm:"references:ID"`
-	Forms      []ProductForm
-}
+type Repo struct{ db *sql.DB }
 
-func (c *Product) BeforeSave(_ *gorm.DB) error {
-	if !c.CategoryID.Valid {
-		return nil
+func NewRepo(ctx context.Context, db *sql.DB) (*Repo, error) {
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS products (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		name TEXT NOT NULL,
+		category TEXT,
+		forms_json TEXT NOT NULL
+	)`); err != nil {
+		return nil, wrapErr(fmt.Errorf("can't initialize product tables: %w", err))
 	}
-	if c.Category == nil {
-		return nil
-	}
-
-	c.CategoryID = sql.NullString{String: c.Category.Name, Valid: true}
-	return nil
+	return &Repo{db: db}, nil
 }
 
-type ProductCategory struct {
-	ID   string `gorm:"primaryKey;size:36"`
-	Name string `gorm:"size:255"`
-}
-
-func (c *ProductCategory) BeforeSave(tx *gorm.DB) error {
-	var existed ProductCategory
-	err := tx.First(&existed, "name = ?", c.Name).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.ID = uuid.NewString()
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	c.ID = existed.ID
-	return nil
-}
-
-type ProductForm struct {
-	ProductID string `gorm:"size:36;references:ID"`
-	ID        string `gorm:"primaryKey;size:36"`
-	Name      string `gorm:"size:255"`
-}
-
-type GormRepo struct {
-	db *gorm.DB
-}
-
-func NewGormRepo(ctx context.Context, db *gorm.DB) (*GormRepo, error) {
-	err := db.WithContext(ctx).AutoMigrate(new(ProductCategory), new(Product), new(ProductForm))
+func (r *Repo) GetAndUpdate(ctx context.Context, productID id.ID[product.Product], updateFunc func(product.Product) (product.Product, error)) (product.Product, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("can't initialize product tables: %w", err)
+		return product.Product{}, wrapErr(err)
 	}
+	defer tx.Rollback()
 
-	return &GormRepo{db: db}, nil
+	current, err := getByID(ctx, tx, productID)
+	if err != nil {
+		return product.Product{}, err
+	}
+	updated, err := updateFunc(current)
+	if err != nil {
+		return product.Product{}, err
+	}
+	if err = upsert(ctx, tx, updated); err != nil {
+		return product.Product{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return product.Product{}, wrapErr(err)
+	}
+	return updated, nil
 }
 
-func (r *GormRepo) GetAndUpdate(
-	ctx context.Context,
-	productID id.ID[product.Product],
-	updateFunc func(product.Product) (product.Product, error),
-) (
-	product.Product,
-	error,
-) {
-	var model product.Product
-	err := r.db.Transaction(func(tx *gorm.DB) error {
-		var entity Product
-		err := tx.WithContext(ctx).First(&entity, productID.UUID).Error
+func (r *Repo) GetByID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
+	return getByID(ctx, r.db, productID)
+}
+
+func (r *Repo) GetByListID(ctx context.Context, idList []id.ID[product.Product]) ([]product.Product, error) {
+	if len(idList) == 0 {
+		return []product.Product{}, nil
+	}
+	args := make([]any, 0, len(idList))
+	ph := make([]string, 0, len(idList))
+	for _, pid := range idList {
+		args = append(args, pid.String())
+		ph = append(ph, "?")
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, created_at, updated_at, name, category, forms_json FROM products WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
+	if err != nil {
+		return nil, wrapErr(err)
+	}
+	defer rows.Close()
+
+	products := []product.Product{}
+	for rows.Next() {
+		m, err := scanProduct(rows)
 		if err != nil {
-			return wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
+			return nil, err
 		}
-
-		model, err = updateFunc(EntityToModel(entity))
-		if err != nil {
-			return err
-		}
-		entity = ModelToEntity(model)
-
-		err = tx.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Model(&Product{ID: entity.ID}).
-			Association("Forms").Unscoped().Replace(entity.Forms)
-		if err != nil {
-			return fmt.Errorf("can't update product %s associations: %w", productID, err)
-		}
-		err = tx.WithContext(ctx).Save(&entity).Error
-		if err != nil {
-			return fmt.Errorf("can't update product %s: %w", productID, err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return model, wrapErr(fmt.Errorf("transaction failed: %w", err))
+		products = append(products, m)
 	}
-
-	return model, nil
+	return products, rows.Err()
 }
 
-func (r *GormRepo) GetByID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
-	var entity Product
-	err := r.db.WithContext(ctx).Preload("Category").Preload("Forms").
-		First(&entity, "id = ?", productID.String()).Error
-	if err != nil {
-		return product.Product{}, wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
-	}
-
-	return EntityToModel(entity), nil
+func (r *Repo) Create(ctx context.Context, model product.Product) error {
+	return upsert(ctx, r.db, model)
 }
 
-func (r *GormRepo) GetByListID(ctx context.Context, idList []id.ID[product.Product]) ([]product.Product, error) {
-	var entities []Product
-
-	uuids := lo.Map(idList, func(item id.ID[product.Product], _ int) uuid.UUID { return item.UUID })
-
-	err := r.db.WithContext(ctx).Preload("Forms").Find(&entities, uuids).Error
-	if err != nil {
-		return nil, wrapErr(fmt.Errorf("can't select products %v: %w", idList, err))
-	}
-
-	return lo.Map(entities, func(item Product, _ int) product.Product { return EntityToModel(item) }), nil
+func (r *Repo) Delete(ctx context.Context, productID id.ID[product.Product]) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM products WHERE id = ?`, productID.String())
+	return wrapErr(err)
 }
 
-func (r *GormRepo) Create(ctx context.Context, model product.Product) error {
-	entity := ModelToEntity(model)
-	log.Info().Any("model", model).Any("entity", entity).Msg("inserting new product")
-	err := r.db.WithContext(ctx).Create(&entity).Error
-	if err != nil {
-		return wrapErr(fmt.Errorf("can't update product %s: %w", model.ID, err))
-	}
-
-	return nil
+func getByID(ctx context.Context, db interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, productID id.ID[product.Product]) (product.Product, error) {
+	row := db.QueryRowContext(ctx, `SELECT id, created_at, updated_at, name, category, forms_json FROM products WHERE id = ?`, productID.String())
+	return scanProductRow(row)
 }
 
-func (r *GormRepo) Delete(ctx context.Context, productID id.ID[product.Product]) error {
-	err := r.db.WithContext(ctx).Delete(new(Product), productID.UUID[:]).Error
-	if err != nil {
-		return wrapErr(fmt.Errorf("can't delete product %s: %w", productID, err))
-	}
-
-	return nil
+func upsert(ctx context.Context, db interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, model product.Product) error {
+	forms, _ := json.Marshal(lo.Map(model.Forms, func(f product.Form, _ int) string { return string(f) }))
+	_, err := db.ExecContext(ctx, `INSERT INTO products(id, created_at, updated_at, name, category, forms_json)
+	VALUES(?,?,?,?,?,?)
+	ON CONFLICT(id) DO UPDATE SET created_at=excluded.created_at, updated_at=excluded.updated_at, name=excluded.name, category=excluded.category, forms_json=excluded.forms_json`,
+		model.ID.String(), model.CreatedAt.Time, model.UpdatedAt.Time, string(model.Name), sql.NullString{String: string(model.Category.OrEmpty()), Valid: model.Category.IsPresent()}, string(forms))
+	return wrapErr(err)
 }
 
-func EntityToModel(entity Product) product.Product {
-	category := mo.None[product.Category]()
-	if entity.Category != nil {
-		category = mo.EmptyableToOption(product.Category(entity.Category.Name))
+func scanProduct(rows *sql.Rows) (product.Product, error) {
+	var idS, name, formsJSON string
+	var createdAt, updatedAt time.Time
+	var category sql.NullString
+	if err := rows.Scan(&idS, &createdAt, &updatedAt, &name, &category, &formsJSON); err != nil {
+		return product.Product{}, wrapErr(err)
 	}
-
-	return product.Product{
-		Options: product.Options{
-			Name:     product.Name(entity.Name),
-			Category: category,
-			Forms: lo.Map(entity.Forms, func(item ProductForm, _ int) product.Form {
-				return product.Form(item.Name)
-			}),
-		},
-		ID:        id.ID[product.Product]{UUID: god.Believe(uuid.Parse(entity.ID))},
-		CreatedAt: date.CreateDate[product.Product]{Time: entity.CreatedAt},
-		UpdatedAt: date.UpdateDate[product.Product]{Time: entity.UpdatedAt},
-	}
+	return rowToModel(idS, createdAt, updatedAt, name, category, formsJSON)
 }
-
-func ModelToEntity(model product.Product) Product {
-	var category *ProductCategory
-	if model.Category.IsPresent() {
-		category = &ProductCategory{
-			ID:   "", // will be set in hooks
-			Name: string(model.Category.OrEmpty()),
-		}
+func scanProductRow(row *sql.Row) (product.Product, error) {
+	var idS, name, formsJSON string
+	var createdAt, updatedAt time.Time
+	var category sql.NullString
+	if err := row.Scan(&idS, &createdAt, &updatedAt, &name, &category, &formsJSON); err != nil {
+		return product.Product{}, wrapErr(err)
 	}
-
-	return Product{
-		ID:         model.ID.String(),
-		CreatedAt:  model.CreatedAt.Time,
-		UpdatedAt:  model.UpdatedAt.Time,
-		Name:       string(model.Name),
-		CategoryID: sql.NullString{String: "", Valid: false}, // will be set in hooks
-		Category:   category,
-		Forms: lo.Map(model.Forms, func(item product.Form, _ int) ProductForm {
-			return ProductForm{
-				ProductID: model.ID.String(),
-				ID:        uuid.NewString(),
-				Name:      string(item),
-			}
-		}),
+	return rowToModel(idS, createdAt, updatedAt, name, category, formsJSON)
+}
+func rowToModel(idS string, createdAt, updatedAt time.Time, name string, category sql.NullString, formsJSON string) (product.Product, error) {
+	formsRaw := []string{}
+	if err := json.Unmarshal([]byte(formsJSON), &formsRaw); err != nil {
+		return product.Product{}, wrapErr(err)
 	}
+	cat := mo.None[product.Category]()
+	if category.Valid {
+		cat = mo.Some(product.Category(category.String))
+	}
+	return product.Product{Options: product.Options{Name: product.Name(name), Category: cat, Forms: lo.Map(formsRaw, func(v string, _ int) product.Form { return product.Form(v) })}, ID: id.ID[product.Product]{UUID: god.Believe(uuid.Parse(idS))}, CreatedAt: date.CreateDate[product.Product]{Time: createdAt}, UpdatedAt: date.UpdateDate[product.Product]{Time: updatedAt}}, nil
 }
 
 func wrapErr(err error) error {

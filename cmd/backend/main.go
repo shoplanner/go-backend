@@ -19,9 +19,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	authAPI "go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/auth/provider"
@@ -43,7 +40,6 @@ import (
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
-	"go-backend/pkg/bd"
 	"go-backend/pkg/hashing"
 )
 
@@ -110,14 +106,7 @@ func main() {
 	}
 	defer db.Close()
 
-	gormDB, err := gorm.Open(sqlite.Open(envCfg.Database.Path), &gorm.Config{Logger: logger.Discard})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sqlAdapter := bd.NewDB(db, parentLogger)
-
-	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
+	userDB, err := userRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing user repo")
 	}
@@ -125,15 +114,15 @@ func main() {
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
-	productRepo, err := productRepo.NewGormRepo(ctx, gormDB)
+	productRepo, err := productRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't initialize product storage")
 	}
-	favoritesRepo, err := favoritesRepo.NewRepo(ctx, gormDB)
+	favoritesRepo, err := favoritesRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing favorites repo")
 	}
-	listRepo, err := listRepo.NewRepo(ctx, gormDB)
+	listRepo, err := listRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initalizing list repo")
 	}
