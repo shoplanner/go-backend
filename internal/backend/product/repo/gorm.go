@@ -3,162 +3,223 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
-	"gorm.io/gorm"
 
 	"go-backend/internal/backend/product"
+	"go-backend/internal/backend/product/repo/sqlgen"
 	"go-backend/pkg/date"
 	"go-backend/pkg/god"
 	"go-backend/pkg/id"
 )
 
+//go:generate python $SQLC_HELPER
+
 type Product struct {
-	ID         string           `gorm:"primaryKey;size:36"`
-	CreatedAt  time.Time        `gorm:"notNull"`
-	UpdatedAt  time.Time        `gorm:"notNull"`
-	Name       string           `gorm:"size:256;notNull"`
-	CategoryID sql.NullString   `gorm:"size:36"`
-	Category   *ProductCategory `gorm:"references:ID"`
+	ID         string
+	CreatedAt  date.CreateDate[product.Product]
+	UpdatedAt  date.UpdateDate[product.Product]
+	Name       product.Name
+	CategoryID sql.NullString
+	Category   *ProductCategory
 	Forms      []ProductForm
 }
 
-func (c *Product) BeforeSave(_ *gorm.DB) error {
-	if !c.CategoryID.Valid {
-		return nil
-	}
-	if c.Category == nil {
-		return nil
-	}
-
-	c.CategoryID = sql.NullString{String: c.Category.Name, Valid: true}
-	return nil
-}
-
 type ProductCategory struct {
-	ID   string `gorm:"primaryKey;size:36"`
-	Name string `gorm:"size:255"`
-}
-
-func (c *ProductCategory) BeforeSave(tx *gorm.DB) error {
-	var existed ProductCategory
-	err := tx.First(&existed, "name = ?", c.Name).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.ID = uuid.NewString()
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	c.ID = existed.ID
-	return nil
+	ID   string
+	Name string
 }
 
 type ProductForm struct {
-	ProductID string `gorm:"size:36;references:ID"`
-	ID        string `gorm:"primaryKey;size:36"`
-	Name      string `gorm:"size:255"`
+	ProductID string
+	ID        string
+	Name      string
 }
 
-type GormRepo struct {
-	db *gorm.DB
+type Repo struct {
+	queries *sqlgen.Queries
+	db      *sql.DB
 }
 
-func NewGormRepo(ctx context.Context, db *gorm.DB) (*GormRepo, error) {
-	err := db.WithContext(ctx).AutoMigrate(new(ProductCategory), new(Product), new(ProductForm))
-	if err != nil {
-		return nil, fmt.Errorf("can't initialize product tables: %w", err)
+func NewRepo(ctx context.Context, db *sql.DB) (*Repo, error) {
+	q := sqlgen.New(db)
+
+	if err := q.InitProductCategories(ctx); err != nil {
+		return nil, wrapErr(fmt.Errorf("can't initialize product categories table: %w", err))
+	}
+	if err := q.InitProducts(ctx); err != nil {
+		return nil, wrapErr(fmt.Errorf("can't initialize products table: %w", err))
+	}
+	if err := q.InitProductForms(ctx); err != nil {
+		return nil, wrapErr(fmt.Errorf("can't initialize product forms table: %w", err))
 	}
 
-	return &GormRepo{db: db}, nil
+	return &Repo{queries: q, db: db}, nil
 }
 
-func (r *GormRepo) GetAndUpdate(
+func (r *Repo) GetAndUpdate(
 	ctx context.Context,
 	productID id.ID[product.Product],
 	updateFunc func(product.Product) (product.Product, error),
-) (
-	product.Product,
-	error,
-) {
-	var model product.Product
-	err := r.db.Transaction(func(tx *gorm.DB) error {
-		var entity Product
-		err := tx.WithContext(ctx).First(&entity, productID.UUID).Error
-		if err != nil {
-			return wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
-		}
-
-		model, err = updateFunc(EntityToModel(entity))
-		if err != nil {
-			return err
-		}
-		entity = ModelToEntity(model)
-
-		err = tx.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Model(&Product{ID: entity.ID}).
-			Association("Forms").Unscoped().Replace(entity.Forms)
-		if err != nil {
-			return fmt.Errorf("can't update product %s associations: %w", productID, err)
-		}
-		err = tx.WithContext(ctx).Save(&entity).Error
-		if err != nil {
-			return fmt.Errorf("can't update product %s: %w", productID, err)
-		}
-
-		return nil
-	})
+) (product.Product, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model, wrapErr(fmt.Errorf("transaction failed: %w", err))
+		return product.Product{}, wrapErr(fmt.Errorf("can't start transaction: %w", err))
+	}
+	defer tx.Rollback()
+
+	qtx := r.queries.WithTx(tx)
+	model, err := getByID(ctx, qtx, productID)
+	if err != nil {
+		return product.Product{}, err
 	}
 
-	return model, nil
+	updated, err := updateFunc(model)
+	if err != nil {
+		return product.Product{}, err
+	}
+	if err = upsertProduct(ctx, qtx, updated); err != nil {
+		return product.Product{}, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return product.Product{}, wrapErr(fmt.Errorf("can't commit transaction: %w", err))
+	}
+	return updated, nil
 }
 
-func (r *GormRepo) GetByID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
-	var entity Product
-	err := r.db.WithContext(ctx).Preload("Category").Preload("Forms").
-		First(&entity, "id = ?", productID.String()).Error
+func (r *Repo) GetByID(ctx context.Context, productID id.ID[product.Product]) (product.Product, error) {
+	return getByID(ctx, r.queries, productID)
+}
+
+func (r *Repo) GetByListID(ctx context.Context, idList []id.ID[product.Product]) ([]product.Product, error) {
+	if len(idList) == 0 {
+		return []product.Product{}, nil
+	}
+
+	ids := lo.Map(idList, func(item id.ID[product.Product], _ int) string { return item.String() })
+	models, err := r.queries.GetProductsByListID(ctx, ids)
+	if err != nil {
+		return nil, wrapErr(fmt.Errorf("can't select products %v: %w", idList, err))
+	}
+
+	forms, err := r.queries.GetFormsByProductListID(ctx, ids)
+	if err != nil {
+		return nil, wrapErr(fmt.Errorf("can't select forms of products %v: %w", idList, err))
+	}
+
+	formsMap := map[string][]ProductForm{}
+	for _, f := range forms {
+		formsMap[f.ProductID] = append(formsMap[f.ProductID], ProductForm{ID: f.ID, ProductID: f.ProductID, Name: f.Name})
+	}
+
+	return lo.Map(models, func(item sqlgen.GetProductsByListIDRow, _ int) product.Product {
+		entity := Product{
+			ID:         item.ID,
+			Name:       product.Name(item.Name),
+			CreatedAt:  date.CreateDate[product.Product]{Time: item.CreatedAt},
+			UpdatedAt:  date.UpdateDate[product.Product]{Time: item.UpdatedAt},
+			CategoryID: item.CategoryID,
+			Forms:      formsMap[item.ID],
+		}
+		if item.CategoryName.Valid {
+			entity.Category = &ProductCategory{ID: item.CategoryID.String, Name: item.CategoryName.String}
+		}
+		return EntityToModel(entity)
+	}), nil
+}
+
+func (r *Repo) Create(ctx context.Context, model product.Product) error {
+	return upsertProduct(ctx, r.queries, model)
+}
+
+func (r *Repo) Delete(ctx context.Context, productID id.ID[product.Product]) error {
+	if err := r.queries.DeleteFormsByProductID(ctx, productID.String()); err != nil {
+		return wrapErr(fmt.Errorf("can't delete product forms %s: %w", productID, err))
+	}
+	if err := r.queries.DeleteProductByID(ctx, productID.String()); err != nil {
+		return wrapErr(fmt.Errorf("can't delete product %s: %w", productID, err))
+	}
+	return nil
+}
+
+func getByID(
+	ctx context.Context,
+	q interface {
+		GetProductByID(context.Context, string) (sqlgen.GetProductByIDRow, error)
+		GetFormsByProductID(context.Context, string) ([]sqlgen.ProductForm, error)
+	},
+	productID id.ID[product.Product],
+) (product.Product, error) {
+	item, err := q.GetProductByID(ctx, productID.String())
 	if err != nil {
 		return product.Product{}, wrapErr(fmt.Errorf("can't get product %s: %w", productID, err))
+	}
+
+	forms, err := q.GetFormsByProductID(ctx, productID.String())
+	if err != nil {
+		return product.Product{}, wrapErr(fmt.Errorf("can't get forms of product %s: %w", productID, err))
+	}
+
+	entity := Product{
+		ID:         item.ID,
+		Name:       product.Name(item.Name),
+		CreatedAt:  date.CreateDate[product.Product]{Time: item.CreatedAt},
+		UpdatedAt:  date.UpdateDate[product.Product]{Time: item.UpdatedAt},
+		CategoryID: item.CategoryID,
+		Forms: lo.Map(forms, func(f sqlgen.ProductForm, _ int) ProductForm {
+			return ProductForm{ID: f.ID, ProductID: f.ProductID, Name: f.Name}
+		}),
+	}
+	if item.CategoryName.Valid {
+		entity.Category = &ProductCategory{ID: item.CategoryID.String, Name: item.CategoryName.String}
 	}
 
 	return EntityToModel(entity), nil
 }
 
-func (r *GormRepo) GetByListID(ctx context.Context, idList []id.ID[product.Product]) ([]product.Product, error) {
-	var entities []Product
-
-	uuids := lo.Map(idList, func(item id.ID[product.Product], _ int) uuid.UUID { return item.UUID })
-
-	err := r.db.WithContext(ctx).Preload("Forms").Find(&entities, uuids).Error
-	if err != nil {
-		return nil, wrapErr(fmt.Errorf("can't select products %v: %w", idList, err))
+func upsertProduct(
+	ctx context.Context,
+	q interface {
+		UpsertCategory(context.Context, sqlgen.UpsertCategoryParams) error
+		UpsertProduct(context.Context, sqlgen.UpsertProductParams) error
+		DeleteFormsByProductID(context.Context, string) error
+		InsertProductForm(context.Context, sqlgen.InsertProductFormParams) error
+	},
+	model product.Product,
+) error {
+	if model.Category.IsPresent() {
+		categoryName := string(model.Category.OrEmpty())
+		if err := q.UpsertCategory(ctx, sqlgen.UpsertCategoryParams{ID: categoryName, Name: categoryName}); err != nil {
+			return wrapErr(fmt.Errorf("can't save product category: %w", err))
+		}
 	}
 
-	return lo.Map(entities, func(item Product, _ int) product.Product { return EntityToModel(item) }), nil
-}
-
-func (r *GormRepo) Create(ctx context.Context, model product.Product) error {
-	entity := ModelToEntity(model)
-	log.Info().Any("model", model).Any("entity", entity).Msg("inserting new product")
-	err := r.db.WithContext(ctx).Create(&entity).Error
-	if err != nil {
-		return wrapErr(fmt.Errorf("can't update product %s: %w", model.ID, err))
+	if err := q.UpsertProduct(ctx, sqlgen.UpsertProductParams{
+		ID:         model.ID.String(),
+		CreatedAt:  model.CreatedAt.Time,
+		UpdatedAt:  model.UpdatedAt.Time,
+		Name:       string(model.Name),
+		CategoryID: sql.NullString{String: string(model.Category.OrEmpty()), Valid: model.Category.IsPresent()},
+	}); err != nil {
+		return wrapErr(fmt.Errorf("can't save product %s: %w", model.ID, err))
 	}
 
-	return nil
-}
+	if err := q.DeleteFormsByProductID(ctx, model.ID.String()); err != nil {
+		return wrapErr(fmt.Errorf("can't reset product forms %s: %w", model.ID, err))
+	}
 
-func (r *GormRepo) Delete(ctx context.Context, productID id.ID[product.Product]) error {
-	err := r.db.WithContext(ctx).Delete(new(Product), productID.UUID[:]).Error
-	if err != nil {
-		return wrapErr(fmt.Errorf("can't delete product %s: %w", productID, err))
+	for _, form := range model.Forms {
+		if err := q.InsertProductForm(ctx, sqlgen.InsertProductFormParams{
+			ID:        uuid.NewString(),
+			ProductID: model.ID.String(),
+			Name:      string(form),
+		}); err != nil {
+			return wrapErr(fmt.Errorf("can't save product form of %s: %w", model.ID, err))
+		}
 	}
 
 	return nil
@@ -179,34 +240,8 @@ func EntityToModel(entity Product) product.Product {
 			}),
 		},
 		ID:        id.ID[product.Product]{UUID: god.Believe(uuid.Parse(entity.ID))},
-		CreatedAt: date.CreateDate[product.Product]{Time: entity.CreatedAt},
-		UpdatedAt: date.UpdateDate[product.Product]{Time: entity.UpdatedAt},
-	}
-}
-
-func ModelToEntity(model product.Product) Product {
-	var category *ProductCategory
-	if model.Category.IsPresent() {
-		category = &ProductCategory{
-			ID:   "", // will be set in hooks
-			Name: string(model.Category.OrEmpty()),
-		}
-	}
-
-	return Product{
-		ID:         model.ID.String(),
-		CreatedAt:  model.CreatedAt.Time,
-		UpdatedAt:  model.UpdatedAt.Time,
-		Name:       string(model.Name),
-		CategoryID: sql.NullString{String: "", Valid: false}, // will be set in hooks
-		Category:   category,
-		Forms: lo.Map(model.Forms, func(item product.Form, _ int) ProductForm {
-			return ProductForm{
-				ProductID: model.ID.String(),
-				ID:        uuid.NewString(),
-				Name:      string(item),
-			}
-		}),
+		CreatedAt: entity.CreatedAt,
+		UpdatedAt: entity.UpdatedAt,
 	}
 }
 
