@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 
 	"go-backend/internal/backend/favorite"
+	"go-backend/internal/backend/favorite/repo/sqlgen"
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/user"
 	"go-backend/pkg/date"
@@ -20,89 +19,61 @@ import (
 	"go-backend/pkg/id"
 )
 
+//go:generate python $SQLC_HELPER
+
 type Repo struct {
-	db *sql.DB
+	db      *sql.DB
+	queries *sqlgen.Queries
 }
 
 func NewRepo(ctx context.Context, db *sql.DB) (*Repo, error) {
-	stmts := []string{
-		`CREATE TABLE IF NOT EXISTS favorite_lists (
-			id TEXT PRIMARY KEY,
-			list_type INTEGER NOT NULL,
-			created_at DATETIME NOT NULL,
-			updated_at DATETIME NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS favorite_members (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
-			favorite_list_id TEXT NOT NULL,
-			created_at DATETIME NOT NULL,
-			updated_at DATETIME NOT NULL,
-			member_type INTEGER NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS favorite_products (
-			id TEXT PRIMARY KEY,
-			product_id TEXT NOT NULL,
-			favorite_list_id TEXT NOT NULL,
-			created_at DATETIME NOT NULL,
-			updated_at DATETIME NOT NULL,
-			UNIQUE(product_id, favorite_list_id)
-		)`,
+	q := sqlgen.New(db)
+
+	if err := q.InitFavoriteLists(ctx); err != nil {
+		return nil, fmt.Errorf("can't create favorites tables: %w", err)
+	}
+	if err := q.InitFavoriteMembers(ctx); err != nil {
+		return nil, fmt.Errorf("can't create favorites tables: %w", err)
+	}
+	if err := q.InitFavoriteProducts(ctx); err != nil {
+		return nil, fmt.Errorf("can't create favorites tables: %w", err)
 	}
 
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return nil, fmt.Errorf("can't create favorites tables: %w", err)
-		}
-	}
-
-	return &Repo{db: db}, nil
+	return &Repo{db: db, queries: q}, nil
 }
 
 func (r *Repo) CreateList(ctx context.Context, model favorite.List) error {
-	return withTx(ctx, r.db, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(
-			ctx,
-			`INSERT INTO favorite_lists(id, list_type, created_at, updated_at) VALUES(?, ?, ?, ?)`,
-			model.ID.String(),
-			int32(model.Type),
-			model.CreatedAt.Time,
-			model.UpdatedAt.Time,
-		)
-		if err != nil {
+	return withTx(ctx, r.db, func(qtx *sqlgen.Queries) error {
+		if err := qtx.CreateFavoriteList(ctx, sqlgen.CreateFavoriteListParams{
+			ID:        model.ID.String(),
+			ListType:  int32(model.Type),
+			CreatedAt: model.CreatedAt.Time,
+			UpdatedAt: model.UpdatedAt.Time,
+		}); err != nil {
 			return fmt.Errorf("can't create new list %s: %w", model.ID, err)
 		}
 
 		for _, member := range model.Members {
-			_, err = tx.ExecContext(
-				ctx,
-				`INSERT INTO favorite_members(id, user_id, favorite_list_id, created_at, updated_at, member_type)
-				 VALUES(?, ?, ?, ?, ?, ?)`,
-				uuid.NewString(),
-				member.UserID.String(),
-				model.ID.String(),
-				member.CreatedAt.Time,
-				member.UpdatedAt.Time,
-				int32(member.Type),
-			)
-			if err != nil {
+			if err := qtx.CreateFavoriteMember(ctx, sqlgen.CreateFavoriteMemberParams{
+				ID:             uuid.NewString(),
+				UserID:         member.UserID.String(),
+				FavoriteListID: model.ID.String(),
+				CreatedAt:      member.CreatedAt.Time,
+				UpdatedAt:      member.UpdatedAt.Time,
+				MemberType:     int32(member.Type),
+			}); err != nil {
 				return err
 			}
 		}
 
 		for _, p := range model.Products {
-			_, err = tx.ExecContext(
-				ctx,
-				`INSERT INTO favorite_products(id, product_id, favorite_list_id, created_at, updated_at)
-				 VALUES(?, ?, ?, ?, ?)
-				 ON CONFLICT(product_id, favorite_list_id) DO UPDATE SET updated_at=excluded.updated_at`,
-				uuid.NewString(),
-				p.Product.ID.String(),
-				model.ID.String(),
-				p.CreatedAt.Time,
-				p.UpdatedAt.Time,
-			)
-			if err != nil {
+			if err := qtx.CreateFavoriteProduct(ctx, sqlgen.CreateFavoriteProductParams{
+				ID:             uuid.NewString(),
+				ProductID:      p.Product.ID.String(),
+				FavoriteListID: model.ID.String(),
+				CreatedAt:      p.CreatedAt.Time,
+				UpdatedAt:      p.UpdatedAt.Time,
+			}); err != nil {
 				return err
 			}
 		}
@@ -112,14 +83,14 @@ func (r *Repo) CreateList(ctx context.Context, model favorite.List) error {
 }
 
 func (r *Repo) DeleteList(ctx context.Context, listID id.ID[favorite.List]) error {
-	return withTx(ctx, r.db, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM favorite_members WHERE favorite_list_id = ?`, listID.String()); err != nil {
+	return withTx(ctx, r.db, func(qtx *sqlgen.Queries) error {
+		if err := qtx.DeleteFavoriteMembersByListID(ctx, listID.String()); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM favorite_products WHERE favorite_list_id = ?`, listID.String()); err != nil {
+		if err := qtx.DeleteFavoriteProductsByListID(ctx, listID.String()); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM favorite_lists WHERE id = ?`, listID.String()); err != nil {
+		if err := qtx.DeleteFavoriteList(ctx, listID.String()); err != nil {
 			return fmt.Errorf("can't delete favorites list %s: %w", listID, err)
 		}
 		return nil
@@ -127,42 +98,22 @@ func (r *Repo) DeleteList(ctx context.Context, listID id.ID[favorite.List]) erro
 }
 
 func (r *Repo) GetByID(ctx context.Context, listID id.ID[favorite.List]) (favorite.List, error) {
-	return r.getByID(ctx, r.db, listID)
+	return r.getByID(ctx, r.queries, listID)
 }
 
 func (r *Repo) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]favorite.List, error) {
-	rows, err := r.db.QueryContext(
-		ctx,
-		`SELECT DISTINCT fl.id
-		 FROM favorite_lists fl
-		 JOIN favorite_members fm ON fm.favorite_list_id = fl.id
-		 WHERE fm.user_id = ?`,
-		userID.String(),
-	)
+	listIDs, err := r.queries.GetFavoriteListIDsByUserID(ctx, userID.String())
 	if err != nil {
 		return nil, fmt.Errorf("can't get lists of user %s: %w", userID, err)
 	}
-	defer rows.Close()
 
-	ids := []id.ID[favorite.List]{}
-	for rows.Next() {
-		var listIDRaw string
-		if err = rows.Scan(&listIDRaw); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id.ID[favorite.List]{UUID: god.Believe(uuid.Parse(listIDRaw))})
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	result := make([]favorite.List, 0, len(ids))
-	for _, listIDItem := range ids {
-		item, getErr := r.GetByID(ctx, listIDItem)
+	result := make([]favorite.List, 0, len(listIDs))
+	for _, listIDRaw := range listIDs {
+		model, getErr := r.GetByID(ctx, id.ID[favorite.List]{UUID: god.Believe(uuid.Parse(listIDRaw))})
 		if getErr != nil {
 			return nil, getErr
 		}
-		result = append(result, item)
+		result = append(result, model)
 	}
 
 	return result, nil
@@ -196,9 +147,9 @@ func (r *Repo) GetAndUpdate(
 	error,
 ) {
 	var model favorite.List
-	err := withTx(ctx, r.db, func(tx *sql.Tx) error {
+	err := withTx(ctx, r.db, func(qtx *sqlgen.Queries) error {
 		var err error
-		model, err = r.getByID(ctx, tx, listID)
+		model, err = r.getByID(ctx, qtx, listID)
 		if err != nil {
 			return err
 		}
@@ -208,43 +159,42 @@ func (r *Repo) GetAndUpdate(
 			return err
 		}
 
-		if _, err = tx.ExecContext(ctx, `UPDATE favorite_lists SET list_type = ?, created_at = ?, updated_at = ? WHERE id = ?`,
-			int32(model.Type), model.CreatedAt.Time, model.UpdatedAt.Time, listID.String()); err != nil {
+		if err = qtx.UpdateFavoriteList(ctx, sqlgen.UpdateFavoriteListParams{
+			ListType:  int32(model.Type),
+			CreatedAt: model.CreatedAt.Time,
+			UpdatedAt: model.UpdatedAt.Time,
+			ID:        listID.String(),
+		}); err != nil {
 			return err
 		}
 
-		if _, err = tx.ExecContext(ctx, `DELETE FROM favorite_members WHERE favorite_list_id = ?`, listID.String()); err != nil {
+		if err = qtx.DeleteFavoriteMembersByListID(ctx, listID.String()); err != nil {
 			return err
 		}
 		for _, member := range model.Members {
-			if _, err = tx.ExecContext(ctx,
-				`INSERT INTO favorite_members(id, user_id, favorite_list_id, created_at, updated_at, member_type)
-				 VALUES(?, ?, ?, ?, ?, ?)`,
-				uuid.NewString(),
-				member.UserID.String(),
-				listID.String(),
-				member.CreatedAt.Time,
-				member.UpdatedAt.Time,
-				int32(member.Type),
-			); err != nil {
+			if err = qtx.CreateFavoriteMember(ctx, sqlgen.CreateFavoriteMemberParams{
+				ID:             uuid.NewString(),
+				UserID:         member.UserID.String(),
+				FavoriteListID: listID.String(),
+				CreatedAt:      member.CreatedAt.Time,
+				UpdatedAt:      member.UpdatedAt.Time,
+				MemberType:     int32(member.Type),
+			}); err != nil {
 				return err
 			}
 		}
 
-		if _, err = tx.ExecContext(ctx, `DELETE FROM favorite_products WHERE favorite_list_id = ?`, listID.String()); err != nil {
+		if err = qtx.DeleteFavoriteProductsByListID(ctx, listID.String()); err != nil {
 			return err
 		}
 		for _, p := range model.Products {
-			if _, err = tx.ExecContext(ctx,
-				`INSERT INTO favorite_products(id, product_id, favorite_list_id, created_at, updated_at)
-				 VALUES(?, ?, ?, ?, ?)
-				 ON CONFLICT(product_id, favorite_list_id) DO UPDATE SET updated_at=excluded.updated_at`,
-				uuid.NewString(),
-				p.Product.ID.String(),
-				listID.String(),
-				p.CreatedAt.Time,
-				p.UpdatedAt.Time,
-			); err != nil {
+			if err = qtx.CreateFavoriteProduct(ctx, sqlgen.CreateFavoriteProductParams{
+				ID:             uuid.NewString(),
+				ProductID:      p.Product.ID.String(),
+				FavoriteListID: listID.String(),
+				CreatedAt:      p.CreatedAt.Time,
+				UpdatedAt:      p.UpdatedAt.Time,
+			}); err != nil {
 				return err
 			}
 		}
@@ -260,80 +210,64 @@ func (r *Repo) GetAndUpdate(
 
 func (r *Repo) getByID(
 	ctx context.Context,
-	db interface {
-		QueryRowContext(context.Context, string, ...any) *sql.Row
-		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	q interface {
+		GetFavoriteListByID(context.Context, string) (sqlgen.FavoriteList, error)
+		GetFavoriteMembersByListID(context.Context, string) ([]sqlgen.GetFavoriteMembersByListIDRow, error)
+		GetFavoriteProductsByListID(context.Context, string) ([]sqlgen.GetFavoriteProductsByListIDRow, error)
+		LoadProductsByIDs(context.Context, []string) ([]sqlgen.LoadProductsByIDsRow, error)
 	},
 	listID id.ID[favorite.List],
 ) (favorite.List, error) {
-	model := favorite.List{ID: listID}
-
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT list_type, created_at, updated_at FROM favorite_lists WHERE id = ?`,
-		listID.String(),
-	).Scan(&model.Type, &model.CreatedAt.Time, &model.UpdatedAt.Time); err != nil {
+	listDAO, err := q.GetFavoriteListByID(ctx, listID.String())
+	if err != nil {
 		return favorite.List{}, fmt.Errorf("can't select favorites list %s: %w", listID, err)
 	}
 
-	membersRows, err := db.QueryContext(
-		ctx,
-		`SELECT user_id, member_type, created_at, updated_at
-		 FROM favorite_members
-		 WHERE favorite_list_id = ?`,
-		listID.String(),
-	)
+	model := favorite.List{
+		ID:        id.ID[favorite.List]{UUID: god.Believe(uuid.Parse(listDAO.ID))},
+		Type:      favorite.ListType(listDAO.ListType),
+		CreatedAt: date.CreateDate[favorite.List]{Time: listDAO.CreatedAt},
+		UpdatedAt: date.UpdateDate[favorite.List]{Time: listDAO.UpdatedAt},
+	}
+
+	members, err := q.GetFavoriteMembersByListID(ctx, listID.String())
 	if err != nil {
 		return favorite.List{}, err
 	}
-	defer membersRows.Close()
-
-	model.Members = []favorite.Member{}
-	for membersRows.Next() {
-		var userIDRaw string
-		var m favorite.Member
-		if err = membersRows.Scan(&userIDRaw, &m.Type, &m.CreatedAt.Time, &m.UpdatedAt.Time); err != nil {
-			return favorite.List{}, err
+	model.Members = lo.Map(members, func(item sqlgen.GetFavoriteMembersByListIDRow, _ int) favorite.Member {
+		return favorite.Member{
+			UserID:    id.ID[user.User]{UUID: god.Believe(uuid.Parse(item.UserID))},
+			Type:      favorite.MemberType(item.MemberType),
+			CreatedAt: date.CreateDate[favorite.Member]{Time: item.CreatedAt},
+			UpdatedAt: date.UpdateDate[favorite.Member]{Time: item.UpdatedAt},
 		}
-		m.UserID = id.ID[user.User]{UUID: god.Believe(uuid.Parse(userIDRaw))}
-		model.Members = append(model.Members, m)
-	}
+	})
 
-	productsRows, err := db.QueryContext(
-		ctx,
-		`SELECT product_id, created_at, updated_at
-		 FROM favorite_products
-		 WHERE favorite_list_id = ?`,
-		listID.String(),
-	)
+	productsDAO, err := q.GetFavoriteProductsByListID(ctx, listID.String())
 	if err != nil {
 		return favorite.List{}, err
 	}
-	defer productsRows.Close()
 
 	productMeta := map[string]favorite.Favorite{}
-	productIDs := []string{}
-	for productsRows.Next() {
-		var productID string
-		var item favorite.Favorite
-		if err = productsRows.Scan(&productID, &item.CreatedAt.Time, &item.UpdatedAt.Time); err != nil {
-			return favorite.List{}, err
+	ids := []string{}
+	for _, item := range productsDAO {
+		productMeta[item.ProductID] = favorite.Favorite{
+			CreatedAt: date.CreateDate[favorite.Favorite]{Time: item.CreatedAt},
+			UpdatedAt: date.UpdateDate[favorite.Favorite]{Time: item.UpdatedAt},
 		}
-		item.Product.ID = id.ID[product.Product]{UUID: god.Believe(uuid.Parse(productID))}
-		productMeta[productID] = item
-		productIDs = append(productIDs, productID)
+		ids = append(ids, item.ProductID)
 	}
 
-	productMap, err := loadProducts(ctx, db, productIDs)
+	productsMap, err := loadProducts(ctx, q, ids)
 	if err != nil {
 		return favorite.List{}, err
 	}
 
-	sort.Strings(productIDs)
-	model.Products = make([]favorite.Favorite, 0, len(productIDs))
-	for _, pid := range productIDs {
+	sort.Strings(ids)
+	model.Products = make([]favorite.Favorite, 0, len(ids))
+	for _, pid := range ids {
 		item := productMeta[pid]
-		item.Product = productMap[pid]
+		item.Product = productsMap[pid]
 		model.Products = append(model.Products, item)
 	}
 
@@ -342,8 +276,8 @@ func (r *Repo) getByID(
 
 func loadProducts(
 	ctx context.Context,
-	db interface {
-		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	q interface {
+		LoadProductsByIDs(context.Context, []string) ([]sqlgen.LoadProductsByIDsRow, error)
 	},
 	ids []string,
 ) (map[string]product.Product, error) {
@@ -351,66 +285,39 @@ func loadProducts(
 		return map[string]product.Product{}, nil
 	}
 
-	args := make([]any, 0, len(ids))
-	placeholders := make([]string, 0, len(ids))
-	for _, v := range ids {
-		args = append(args, v)
-		placeholders = append(placeholders, "?")
-	}
-
-	rows, err := db.QueryContext(ctx,
-		`SELECT p.id, p.created_at, p.updated_at, p.name, pc.name, pf.name
-		 FROM products p
-		 LEFT JOIN product_categories pc ON p.category_id = pc.id OR p.category_id = pc.name
-		 LEFT JOIN product_forms pf ON pf.product_id = p.id
-		 WHERE p.id IN (`+strings.Join(placeholders, ",")+`)
-		 ORDER BY p.id`,
-		args...,
-	)
+	rows, err := q.LoadProductsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	type aggregate struct {
 		product product.Product
 		forms   map[string]struct{}
 	}
-
 	agg := map[string]*aggregate{}
-	for rows.Next() {
-		var (
-			idRaw, name string
-			category    sql.NullString
-			form        sql.NullString
-			createdAt   time.Time
-			updatedAt   time.Time
-		)
-		if err = rows.Scan(&idRaw, &createdAt, &updatedAt, &name, &category, &form); err != nil {
-			return nil, err
-		}
 
-		if _, ok := agg[idRaw]; !ok {
+	for _, row := range rows {
+		if _, ok := agg[row.ID]; !ok {
 			cat := mo.None[product.Category]()
-			if category.Valid {
-				cat = mo.Some(product.Category(category.String))
+			if row.CategoryName.Valid {
+				cat = mo.Some(product.Category(row.CategoryName.String))
 			}
-			agg[idRaw] = &aggregate{product: product.Product{
-				Options: product.Options{Name: product.Name(name), Category: cat, Forms: []product.Form{}},
-				ID:      id.ID[product.Product]{UUID: god.Believe(uuid.Parse(idRaw))},
+			agg[row.ID] = &aggregate{product: product.Product{
+				Options: product.Options{Name: product.Name(row.Name), Category: cat, Forms: []product.Form{}},
+				ID:      id.ID[product.Product]{UUID: god.Believe(uuid.Parse(row.ID))},
 				CreatedAt: date.CreateDate[product.Product]{
-					Time: createdAt,
+					Time: row.CreatedAt,
 				},
 				UpdatedAt: date.UpdateDate[product.Product]{
-					Time: updatedAt,
+					Time: row.UpdatedAt,
 				},
 			}, forms: map[string]struct{}{}}
 		}
 
-		if form.Valid {
-			if _, exists := agg[idRaw].forms[form.String]; !exists {
-				agg[idRaw].forms[form.String] = struct{}{}
-				agg[idRaw].product.Forms = append(agg[idRaw].product.Forms, product.Form(form.String))
+		if row.FormName.Valid {
+			if _, exists := agg[row.ID].forms[row.FormName.String]; !exists {
+				agg[row.ID].forms[row.FormName.String] = struct{}{}
+				agg[row.ID].product.Forms = append(agg[row.ID].product.Forms, product.Form(row.FormName.String))
 			}
 		}
 	}
@@ -419,17 +326,20 @@ func loadProducts(
 	for key, value := range agg {
 		result[key] = value.product
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
-func withTx(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) error {
+func withTx(ctx context.Context, db *sql.DB, f func(*sqlgen.Queries) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err = f(tx); err != nil {
+
+	qtx := sqlgen.New(tx)
+	if err = f(qtx); err != nil {
 		return err
 	}
+
 	return tx.Commit()
 }
