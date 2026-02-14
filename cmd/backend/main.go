@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+	_ "modernc.org/sqlite"
 
 	authAPI "go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/auth/provider"
@@ -100,7 +101,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	db, err := sql.Open("sqlite3", envCfg.Database.Path)
+	db, err := sql.Open("sqlite", envCfg.Database.Path)
 	if err != nil {
 		log.Fatal(err)
 	}
