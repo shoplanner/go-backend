@@ -8,3 +8,4 @@ dolt/**
 redis_data/**
 **.db
 **.tar
+/.private_key
