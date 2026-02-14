@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
@@ -52,19 +53,22 @@ import (
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
-	if err != nil {
-		panic(err)
-	}
-
-	parentLogger := zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger()
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
 
 	flag.Parse()
 
 	ctx := context.Background()
+
+	envCfg, err := config.ParseEnv(ctx)
+	if err != nil {
+		log.Fatalf("can't parse environment: %v", err)
+	}
+
+	parentLogger, err := makeLogger(envCfg.Logging.Writer)
+	if err != nil {
+		log.Fatalf("can't initialize logger: %v", err)
+	}
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -81,10 +85,6 @@ func main() {
 		parentLogger.Fatal().Err(err).Msg("can't start listening")
 	}
 
-	envCfg, err := config.ParseEnv(ctx)
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("can't parse environment")
-	}
 	parentLogger.Info().Any("env", envCfg).Msg("loaded env")
 
 	privateKey, err := os.ReadFile(envCfg.Auth.PrivateKey)
@@ -178,6 +178,19 @@ func main() {
 	}
 
 	parentLogger.Info().Msg("server stopped")
+}
+
+func makeLogger(writerType string) (zerolog.Logger, error) {
+	if strings.EqualFold(writerType, "stdout") {
+		return zerolog.New(os.Stdout).With().Timestamp().Caller().Logger(), nil
+	}
+
+	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
+	if err != nil {
+		return zerolog.Logger{}, err
+	}
+
+	return zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger(), nil
 }
 
 var ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA")
