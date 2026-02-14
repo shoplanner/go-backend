@@ -29,6 +29,7 @@ type AuthCfg struct {
 type Env struct {
 	Database DatabaseEnv
 	Auth     AuthEnv
+	Logging  LoggingEnv
 }
 
 type AuthEnv struct {
@@ -37,6 +38,10 @@ type AuthEnv struct {
 
 type DatabaseEnv struct {
 	Path string `env:"DB_PATH"`
+}
+
+type LoggingEnv struct {
+	Writer string `env:"LOG_WRITER,default=syslog"`
 }
 
 func ParseConfig(path string) (Config, error) {

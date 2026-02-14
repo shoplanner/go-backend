@@ -15,13 +15,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	_ "modernc.org/sqlite"
 
 	authAPI "go-backend/internal/backend/auth/api"
 	"go-backend/internal/backend/auth/provider"
@@ -43,7 +42,6 @@ import (
 	userAPI "go-backend/internal/backend/user/api"
 	userRepo "go-backend/internal/backend/user/repo"
 	userService "go-backend/internal/backend/user/service"
-	"go-backend/pkg/bd"
 	"go-backend/pkg/hashing"
 )
 
@@ -56,19 +54,22 @@ import (
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
-	if err != nil {
-		panic(err)
-	}
-
-	parentLogger := zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger()
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
 
 	flag.Parse()
 
 	ctx := context.Background()
+
+	envCfg, err := config.ParseEnv(ctx)
+	if err != nil {
+		log.Fatalf("can't parse environment: %v", err)
+	}
+
+	parentLogger, err := makeLogger(envCfg.Logging.Writer)
+	if err != nil {
+		log.Fatalf("can't initialize logger: %v", err)
+	}
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -85,10 +86,6 @@ func main() {
 		parentLogger.Fatal().Err(err).Msg("can't start listening")
 	}
 
-	envCfg, err := config.ParseEnv(ctx)
-	if err != nil {
-		parentLogger.Fatal().Err(err).Msg("can't parse environment")
-	}
 	parentLogger.Info().Any("env", envCfg).Msg("loaded env")
 
 	privateKey, err := os.ReadFile(envCfg.Auth.PrivateKey)
@@ -104,20 +101,13 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	db, err := sql.Open("sqlite3", envCfg.Database.Path)
+	db, err := sql.Open("sqlite", envCfg.Database.Path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	gormDB, err := gorm.Open(sqlite.Open(envCfg.Database.Path), &gorm.Config{Logger: logger.Discard})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sqlAdapter := bd.NewDB(db, parentLogger)
-
-	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
+	userDB, err := userRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing user repo")
 	}
@@ -125,15 +115,15 @@ func main() {
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't initialize shop map storage")
 	}
-	productRepo, err := productRepo.NewGormRepo(ctx, gormDB)
+	productRepo, err := productRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't initialize product storage")
 	}
-	favoritesRepo, err := favoritesRepo.NewRepo(ctx, gormDB)
+	favoritesRepo, err := favoritesRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing favorites repo")
 	}
-	listRepo, err := listRepo.NewRepo(ctx, gormDB)
+	listRepo, err := listRepo.NewRepo(ctx, db)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initalizing list repo")
 	}
@@ -189,6 +179,19 @@ func main() {
 	}
 
 	parentLogger.Info().Msg("server stopped")
+}
+
+func makeLogger(writerType string) (zerolog.Logger, error) {
+	if strings.EqualFold(writerType, "stdout") {
+		return zerolog.New(os.Stdout).With().Timestamp().Caller().Logger(), nil
+	}
+
+	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
+	if err != nil {
+		return zerolog.Logger{}, err
+	}
+
+	return zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger(), nil
 }
 
 var ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA")
