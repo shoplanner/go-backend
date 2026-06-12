@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"log/syslog"
 	"net"
 	"os"
 	"os/signal"
@@ -56,12 +55,7 @@ import (
 
 //nolint:funlen,gocognit // yes, main is stronk, as it should be
 func main() {
-	writer, err := syslog.New(syslog.LOG_DEBUG, os.Args[0])
-	if err != nil {
-		panic(err)
-	}
-
-	parentLogger := zerolog.New(zerolog.SyslogLevelWriter(writer)).With().Timestamp().Caller().Logger()
+	parentLogger := zerolog.New(newLogWriter()).With().Timestamp().Caller().Logger()
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	configPath := flag.String("config", "/etc/backend.yaml", "path to config file")
@@ -91,9 +85,9 @@ func main() {
 	}
 	parentLogger.Info().Any("env", envCfg).Msg("loaded env")
 
-	privateKey, err := os.ReadFile(envCfg.Auth.PrivateKey)
+	privateKey, err := os.ReadFile(envCfg.Auth.PrivateKeyPath)
 	if err != nil {
-		parentLogger.Err(err).Str("path", envCfg.Auth.PrivateKey).Msg("failed to read private key file")
+		parentLogger.Err(err).Str("path", envCfg.Auth.PrivateKeyPath).Msg("failed to read private key file")
 	}
 
 	authPrivateKey, err := decodeECDSA(string(privateKey))
