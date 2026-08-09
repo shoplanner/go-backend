@@ -1,0 +1,15 @@
+{
+  "categories": [
+    "dairy",
+    "bakery",
+    "produce"
+  ],
+  "created_at": "<ts>",
+  "id": "<uuid:0>",
+  "owner_id": "<uuid:1>",
+  "title": "corner shop",
+  "updated_at": "<ts>",
+  "viewers_id": [
+    "<uuid:2>"
+  ]
+}

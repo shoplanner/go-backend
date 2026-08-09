@@ -18,6 +18,14 @@ tasks:
     deps: [generate]
     cmds:
       - go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
+  test:
+    cmds:
+      - go test ./... -race
+  # Regenerates the committed artifacts under internal/backend/functest/testdata: the schema
+  # snapshot, the golden domain models and the legacy database dump. Review the diff by hand.
+  test:update:
+    cmds:
+      - go test ./internal/backend/functest/ -update
   lint:
     cmds:
       - golangci-lint run

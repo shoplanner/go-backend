@@ -194,10 +194,16 @@ linters:
         source: //noinspection
       - linters:
           - bodyclose
+          - cyclop
           - dupl
+          - err113
+          - exhaustruct
           - funlen
+          - gochecknoglobals
           - goconst
           - gosec
+          - maintidx
+          - mnd
           - noctx
           - wrapcheck
         path: _test\.go

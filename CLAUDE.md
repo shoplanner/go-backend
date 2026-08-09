@@ -11,6 +11,8 @@ necessarily installed on PATH — the plain `go` equivalents are listed alongsid
 task generate        # swag init (-g cmd/backend/main.go) + go generate ./...
 task build           # runs generate, then: go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
 task run             # builds and runs: bin/backend --config config/backend.yml
+task test            # go test ./... -race
+task test:update     # regenerates internal/backend/functest/testdata (see Regression suite)
 task lint            # golangci-lint run
 task fmt             # swag fmt + go fmt ./...
 task export          # docker buildx image -> shoplanner.tar
@@ -101,6 +103,31 @@ Handlers carry `@Summary`/`@Router`/`@Security ApiKeyAuth` annotations; `task ge
 (`docs.go`, `swagger.json`, `swagger.yaml` — generated, do not hand-edit). The UI is served at
 `/api/v1/swagger/index.html`. The auth header is literally `Auth: Bearer <token>`, not `Authorization`.
 
+## Regression suite (`internal/backend/functest`)
+
+`internal/backend/functest` is a cross-domain functional suite that exists to make the GORM → sqlc migration
+verifiable. It wires the whole backend minus HTTP exactly as `cmd/backend/main.go` does — both a `database/sql`
+and a GORM handle over one temp SQLite file — and drives every service against it. Nothing is mocked.
+
+Three committed artifacts under `testdata/` are the actual contract; regenerate them with `task test:update`
+(`go test ./internal/backend/functest/ -update`) and **review the diff by hand**:
+
+- `schema_gorm.sql` — the physical schema the repo constructors produce. There are no migration files in this
+  project, so this snapshot is the only written-down description of the on-disk format. A diff here means either
+  the new schema is compatible with deployed files, or a migration is owed. Constraint clauses are sorted during
+  normalisation because `AutoMigrate` emits foreign keys in map order.
+- `legacy/gorm_v1.sql` — a byte-exact dump of a database written by the GORM-era code, produced by
+  `TestGenerateLegacyDump` (skipped unless `-update`). `legacy_test.go` loads it and reads it back through the
+  services: this is what proves the post-migration code can still read data already on users' disks. When GORM is
+  deleted the generator goes with it; the dump and `legacy_test.go` stay.
+- `golden/*.json` — canonicalised snapshots of domain models. UUIDs become `<uuid:N>` (stable per value, so
+  relationships stay visible) and timestamps become `<ts>`. These catch what hand-written assertions miss: nil vs
+  empty slice, `mo.None` vs `mo.Some("")`, a dropped `Preload`, a reordered collection.
+
+Known bugs are covered by a pair of tests: `..._CurrentBehaviour` is green and pins today's behaviour, and
+`..._Desired` is `t.Skip`ped with a pointer to its partner. When one gets fixed, the pair flips. Do not "fix" a
+`_CurrentBehaviour` test to look correct — its whole job is to fail loudly if the migration changes it by accident.
+
 ## Linting
 
 `.golangci.yml` enables a very large linter set (`exhaustruct`, `wrapcheck`, `err113`, `gochecknoglobals`, `mnd`,
@@ -112,3 +139,6 @@ Handlers carry `@Summary`/`@Router`/`@Security ApiKeyAuth` annotations; `task ge
 - `err113` — no dynamic `errors.New` at call sites; define sentinels or wrap `myerr` values.
 - `nolintlint` requires an explanation comment on `//nolint` directives (except `funlen`, `gocognit`, `lll`).
 - `testpackage` — tests live in `package <pkg>_test`; existing tests use `stretchr/testify` suites.
+- On `_test.go` the following are switched off: `bodyclose`, `cyclop`, `dupl`, `err113`, `exhaustruct`, `funlen`,
+  `gochecknoglobals`, `goconst`, `gosec`, `maintidx`, `mnd`, `noctx`, `wrapcheck`. `exhaustruct` in particular
+  would otherwise force every nested field of `list.ProductList` to be spelled out in each fixture.

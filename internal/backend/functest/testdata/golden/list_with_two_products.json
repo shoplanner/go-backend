@@ -1,0 +1,52 @@
+{
+  "created_at": "<ts>",
+  "id": "<uuid:0>",
+  "members": [
+    {
+      "created_at": "<ts>",
+      "type": "owner",
+      "updated_at": "<ts>",
+      "user_id": "<uuid:1>",
+      "username": "owner"
+    }
+  ],
+  "states": [
+    {
+      "count": null,
+      "created_at": "<ts>",
+      "form_idx": null,
+      "product": {
+        "category": "dairy",
+        "created_at": "<ts>",
+        "forms": [
+          "bottle"
+        ],
+        "id": "<uuid:2>",
+        "name": "milk",
+        "updated_at": "<ts>"
+      },
+      "replacement": null,
+      "status": "waiting",
+      "updated_at": "<ts>"
+    },
+    {
+      "count": null,
+      "created_at": "<ts>",
+      "form_idx": null,
+      "product": {
+        "category": "bakery",
+        "created_at": "<ts>",
+        "forms": [],
+        "id": "<uuid:3>",
+        "name": "bread",
+        "updated_at": "<ts>"
+      },
+      "replacement": null,
+      "status": "waiting",
+      "updated_at": "<ts>"
+    }
+  ],
+  "status": "planning",
+  "title": "groceries",
+  "updated_at": "<ts>"
+}

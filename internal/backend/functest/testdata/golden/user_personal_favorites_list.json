@@ -1,0 +1,15 @@
+{
+  "created_at": "<ts>",
+  "id": "<uuid:0>",
+  "members": [
+    {
+      "created_at": "<ts>",
+      "type": "owner",
+      "updated_at": "<ts>",
+      "user_id": "<uuid:1>"
+    }
+  ],
+  "products": [],
+  "type": "personal",
+  "updated_at": "<ts>"
+}

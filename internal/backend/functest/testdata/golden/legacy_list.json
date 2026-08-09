@@ -1,0 +1,96 @@
+{
+  "created_at": "<ts>",
+  "id": "<uuid:0>",
+  "members": [
+    {
+      "created_at": "<ts>",
+      "type": "owner",
+      "updated_at": "<ts>",
+      "user_id": "<uuid:1>",
+      "username": "alice"
+    },
+    {
+      "created_at": "<ts>",
+      "type": "editor",
+      "updated_at": "<ts>",
+      "user_id": "<uuid:2>",
+      "username": "bob"
+    },
+    {
+      "created_at": "<ts>",
+      "type": "viewer",
+      "updated_at": "<ts>",
+      "user_id": "<uuid:3>",
+      "username": "carol"
+    }
+  ],
+  "states": [
+    {
+      "count": null,
+      "created_at": "<ts>",
+      "form_idx": null,
+      "product": {
+        "category": "dairy",
+        "created_at": "<ts>",
+        "forms": [
+          "block"
+        ],
+        "id": "<uuid:4>",
+        "name": "cheese",
+        "updated_at": "<ts>"
+      },
+      "replacement": {
+        "count": 1,
+        "form_idx": null,
+        "product": {
+          "category": "dairy",
+          "created_at": "<ts>",
+          "forms": [],
+          "id": "<uuid:5>",
+          "name": "oat milk",
+          "updated_at": "<ts>"
+        }
+      },
+      "status": "replaced",
+      "updated_at": "<ts>"
+    },
+    {
+      "count": 2,
+      "created_at": "<ts>",
+      "form_idx": 1,
+      "product": {
+        "category": "dairy",
+        "created_at": "<ts>",
+        "forms": [
+          "bottle",
+          "carton"
+        ],
+        "id": "<uuid:6>",
+        "name": "milk",
+        "updated_at": "<ts>"
+      },
+      "replacement": null,
+      "status": "taken",
+      "updated_at": "<ts>"
+    },
+    {
+      "count": null,
+      "created_at": "<ts>",
+      "form_idx": null,
+      "product": {
+        "category": "bakery",
+        "created_at": "<ts>",
+        "forms": [],
+        "id": "<uuid:7>",
+        "name": "bread",
+        "updated_at": "<ts>"
+      },
+      "replacement": null,
+      "status": "waiting",
+      "updated_at": "<ts>"
+    }
+  ],
+  "status": "planning",
+  "title": "weekly groceries",
+  "updated_at": "<ts>"
+}

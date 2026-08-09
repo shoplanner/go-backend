@@ -1,0 +1,11 @@
+{
+  "category": "dairy",
+  "created_at": "<ts>",
+  "forms": [
+    "bottle",
+    "carton"
+  ],
+  "id": "<uuid:0>",
+  "name": "milk",
+  "updated_at": "<ts>"
+}

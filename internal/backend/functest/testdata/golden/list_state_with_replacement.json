@@ -1,0 +1,27 @@
+{
+  "count": null,
+  "created_at": "<ts>",
+  "form_idx": null,
+  "product": {
+    "category": "dairy",
+    "created_at": "<ts>",
+    "forms": [],
+    "id": "<uuid:0>",
+    "name": "milk",
+    "updated_at": "<ts>"
+  },
+  "replacement": {
+    "count": 2,
+    "form_idx": null,
+    "product": {
+      "category": "dairy",
+      "created_at": "<ts>",
+      "forms": [],
+      "id": "<uuid:1>",
+      "name": "oat milk",
+      "updated_at": "<ts>"
+    }
+  },
+  "status": "replaced",
+  "updated_at": "<ts>"
+}
