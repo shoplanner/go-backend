@@ -8,6 +8,7 @@ package sqlgen
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const createUser = `-- name: CreateUser :execresult
@@ -112,4 +113,54 @@ func (q *Queries) GetByLogin(ctx context.Context, login string) (User, error) {
 		&i.Hash,
 	)
 	return i, err
+}
+
+const getLoginsByIDList = `-- name: GetLoginsByIDList :many
+SELECT
+    id,
+    login
+FROM
+    users
+WHERE
+    id IN (/*SLICE:ids*/?)
+`
+
+type GetLoginsByIDListRow struct {
+	ID    string
+	Login string
+}
+
+// GetLoginsByIDList backs the list repo, whose members carry the user's login. It replaces
+// GORM's Preload("Members.User").
+func (q *Queries) GetLoginsByIDList(ctx context.Context, ids []string) ([]GetLoginsByIDListRow, error) {
+	query := getLoginsByIDList
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLoginsByIDListRow
+	for rows.Next() {
+		var i GetLoginsByIDListRow
+		if err := rows.Scan(&i.ID, &i.Login); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

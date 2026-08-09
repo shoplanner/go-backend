@@ -297,12 +297,18 @@ func dumpSchema(t *testing.T, a *app) string {
 
 // normalizeDDL makes a CREATE statement comparable across runs.
 //
-// Two things vary that should not: whitespace (GORM and sqlc format differently), and the
-// order of the trailing CONSTRAINT clauses — AutoMigrate walks its relations through a map, so
-// the same model emits its foreign keys in a different order on every run. Sorting them keeps
-// the snapshot about structure instead of luck.
+// Three things vary that should not: whitespace and identifier quoting (GORM backquotes every
+// name and packs the statement onto one line, sqlc quotes nothing and indents), and the order
+// of the trailing CONSTRAINT clauses — AutoMigrate walks its relations through a map, so the
+// same model emits its foreign keys in a different order on every run. Normalising all three
+// keeps the snapshot about structure instead of about which generator wrote the table, which
+// is the only question the migration needs it to answer.
 func normalizeDDL(ddl string) string {
-	collapsed := strings.Join(strings.Fields(ddl), " ")
+	collapsed := strings.Join(strings.Fields(unquoteIdentifiers(ddl)), " ")
+
+	for _, pair := range [][2]string{{"( ", "("}, {" )", ")"}, {" ,", ","}, {", ", ","}} {
+		collapsed = strings.ReplaceAll(collapsed, pair[0], pair[1])
+	}
 
 	const marker = ",CONSTRAINT "
 
@@ -326,4 +332,11 @@ func normalizeDDL(ddl string) string {
 	sort.Strings(clauses)
 
 	return head + "," + strings.Join(clauses, ",") + suffix
+}
+
+// unquoteIdentifiers drops the backquotes GORM puts around every identifier and the double
+// quotes SQLite adds when it rewrites a table. No value in this schema contains either
+// character, so a blind strip is safe.
+func unquoteIdentifiers(ddl string) string {
+	return strings.NewReplacer("`", "", `"`, "").Replace(ddl)
 }

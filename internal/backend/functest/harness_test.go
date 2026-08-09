@@ -12,9 +12,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	favoriteRepo "go-backend/internal/backend/favorite/repo"
 	favoriteService "go-backend/internal/backend/favorite/service"
@@ -32,14 +29,16 @@ import (
 	"go-backend/pkg/id"
 )
 
-// app is the whole backend minus the HTTP layer, wired exactly like cmd/backend/main.go:
-// two independent connection pools (database/sql and GORM) over one SQLite file, opened with
-// a bare path and no pragmas. The duplication is deliberate — it is what makes the timestamp
-// format skew and the SQLITE_BUSY behaviour reproducible here.
+// app is the whole backend minus the HTTP layer, wired exactly like cmd/backend/main.go: one
+// database/sql pool over one SQLite file, opened with a bare path and no pragmas.
+//
+// Before the sqlc migration there were two pools here, a database/sql one and a GORM one over
+// the same file, because the repos were split between them. That is gone; what it used to make
+// observable — timestamp format skew between the two drivers, and SQLITE_BUSY between the two
+// pools — is covered by TestTimestampStorageLayout and TestConcurrentWritersCollide.
 type app struct {
-	path   string
-	sqlDB  *sql.DB
-	gormDB *gorm.DB
+	path  string
+	sqlDB *sql.DB
 
 	users     *userService.Service
 	products  *productService.Service
@@ -81,37 +80,28 @@ func openApp(t *testing.T, dbPath string) *app {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 
-	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		underlying, closeErr := gormDB.DB()
-		require.NoError(t, closeErr)
-		require.NoError(t, underlying.Close())
-	})
-
-	// Construction order matters: users must exist before the GORM models that declare
-	// associations against it are migrated. This mirrors main.go.
+	// Construction order mirrors main.go: users first, because the member tables of the
+	// favorites and list repos declare foreign keys against it.
 	userStore, err := userRepo.NewRepo(ctx, bd.NewDB(sqlDB, log))
 	require.NoError(t, err)
 
 	shopMapStore, err := shopMapRepo.NewShopMapRepo(ctx, sqlDB)
 	require.NoError(t, err)
 
-	productStore, err := productRepo.NewGormRepo(ctx, gormDB)
+	productStore, err := productRepo.NewRepo(ctx, sqlDB)
 	require.NoError(t, err)
 
-	favoriteStore, err := favoriteRepo.NewRepo(ctx, gormDB)
+	favoriteStore, err := favoriteRepo.NewRepo(ctx, sqlDB)
 	require.NoError(t, err)
 
-	listStore, err := listRepo.NewRepo(ctx, gormDB)
+	listStore, err := listRepo.NewRepo(ctx, sqlDB)
 	require.NoError(t, err)
 
 	users := userService.NewService(userStore, hashing.HashMaster{})
 
 	return &app{
-		path:   dbPath,
-		sqlDB:  sqlDB,
-		gormDB: gormDB,
+		path:  dbPath,
+		sqlDB: sqlDB,
 
 		users:    users,
 		products: productService.NewService(productStore),

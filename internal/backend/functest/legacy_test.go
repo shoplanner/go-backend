@@ -22,12 +22,33 @@ import (
 // This file is the point of the whole package.
 //
 // testdata/legacy/gorm_v1.sql is a byte-exact snapshot of a database written by the GORM-era
-// code. Every test here loads it and reads it back through the services. Today that exercises
-// the GORM repos against their own output, which is unremarkable; after the rewrite the same
-// bytes will be read by sqlc, and these assertions are what proves nobody's data broke.
+// code. Every test here loads it and reads it back through the services, which are sqlc all the
+// way down now. These assertions are what proves nobody's data broke in the rewrite.
 //
-// Nothing here may depend on a UUID or a timestamp from the dump — those are regenerated
-// whenever the generator runs. Entities are located by login, title or product name.
+// The generator that produced the dump is gone, deliberately: it drove the scenario through the
+// repos, so keeping it would mean `task test:update` silently replacing the pre-migration
+// contract with a post-migration re-recording of itself. The file is frozen input from here on,
+// and nothing in it can be regenerated — which is exactly what makes it evidence.
+//
+// Nothing here may depend on a UUID or a timestamp from the dump. Entities are located by
+// login, title or product name.
+
+const legacyDump = "testdata/legacy/gorm_v1.sql"
+
+// Stable handles for everything the frozen scenario contains. Its UUIDs and timestamps are
+// whatever the pre-migration generator produced, so nothing here may depend on them; entities
+// are located by login, title or product name instead.
+const (
+	legacyOwnerLogin  = "alice"
+	legacyEditorLogin = "bob"
+	legacyViewerLogin = "carol"
+
+	legacyListTitle      = "weekly groceries"
+	legacyEmptyListTitle = "hardware"
+
+	legacyMapTitle      = "corner shop"
+	legacyOtherMapTitle = "big store"
+)
 
 // loadLegacyDB materialises the frozen dump into a fresh file and brings the stack up on it.
 func loadLegacyDB(t *testing.T) *app {
@@ -107,10 +128,56 @@ func TestLegacyBootDoesNotAlterTheSchema(t *testing.T) {
 
 	second := openApp(t, a.path)
 	require.Equal(t, before, dumpSchema(t, second))
+}
 
-	// And it matches the schema a fresh install produces, so there is only one shape to
-	// support rather than two.
-	require.Equal(t, dumpSchema(t, newApp(t)), before)
+// A legacy database and a fresh one must be the same database as far as the code is concerned:
+// same tables, same columns, same types, same nullability, same indexes. This is what "the sqlc
+// schema is byte-compatible with what GORM created, so no migration is owed" actually means,
+// and it is asserted per column rather than on the DDL text because the two were written by
+// different generators.
+//
+// users is the one documented exception — see TestUsersTableIsStrictOnAFreshDatabase.
+func TestLegacyAndFreshDatabasesHaveTheSameShape(t *testing.T) {
+	t.Parallel()
+
+	legacy := loadLegacyDB(t)
+	fresh := newApp(t)
+
+	require.Equal(t, objectNames(t, fresh, "table"), objectNames(t, legacy, "table"))
+	require.Equal(t, objectNames(t, fresh, "index"), objectNames(t, legacy, "index"))
+
+	for _, table := range objectNames(t, fresh, "table") {
+		if table == "users" {
+			continue
+		}
+
+		require.Equal(t, fresh.tableInfo(t, table), legacy.tableInfo(t, table),
+			"table %s differs between a fresh database and a legacy one", table)
+	}
+}
+
+// objectNames lists the tables or indexes in the database, sorted.
+func objectNames(t *testing.T, a *app, objType string) []string {
+	t.Helper()
+
+	rows, err := a.sqlDB.Query(
+		`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE 'sqlite_%' ORDER BY name`, objType)
+	require.NoError(t, err)
+
+	defer func() { require.NoError(t, rows.Close()) }()
+
+	var res []string
+
+	for rows.Next() {
+		var name string
+		require.NoError(t, rows.Scan(&name))
+
+		res = append(res, name)
+	}
+
+	require.NoError(t, rows.Err())
+
+	return res
 }
 
 func TestLegacyUsersAreReadable(t *testing.T) {

@@ -8,15 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const schemaGolden = "testdata/schema_gorm.sql"
+const schemaGolden = "testdata/schema.sql"
 
 // TestSchemaSnapshot pins the physical schema the current repo constructors produce.
 //
-// There are no migration files in this project: the schema is whatever AutoMigrate and the
-// sqlc Init* queries have ever created against a given file. That makes this snapshot the
-// only written-down description of the on-disk format, and the loudest possible alarm for a
-// storage rewrite that changes it. A diff here is not automatically a failure — it is a
-// decision: either the new schema is compatible with existing files, or a migration is owed.
+// There are no migration files in this project: the schema is whatever the Init* queries have
+// ever created against a given file, and CREATE TABLE IF NOT EXISTS will not touch a table that
+// already exists. That makes this snapshot the only written-down description of the on-disk
+// format, and the loudest possible alarm for a storage change. A diff here is not automatically
+// a failure — it is a decision: either the new schema is compatible with existing files, or a
+// migration is owed. TestLegacyAndFreshDatabasesHaveTheSameShape is the other half of it.
 func TestSchemaSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -35,9 +36,9 @@ func TestSchemaSnapshot(t *testing.T) {
 }
 
 // TestSchemaIsStableAcrossRestarts guards the property the legacy tests depend on: bringing
-// the stack up a second time over an existing file must not change anything. If AutoMigrate
-// ever starts adding a column or an index on reopen, every deployed database is silently
-// being rewritten on boot.
+// the stack up a second time over an existing file must not change anything. If a constructor
+// ever starts adding a column or an index on reopen, every deployed database is silently being
+// rewritten on boot.
 func TestSchemaIsStableAcrossRestarts(t *testing.T) {
 	t.Parallel()
 

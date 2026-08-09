@@ -79,6 +79,36 @@ func TestListUpdateOptions(t *testing.T) {
 	require.Equal(t, list.ExecStatusProcessing, got.Status)
 }
 
+// BEHAVIOUR CHANGE, deliberate, introduced by the sqlc migration.
+//
+// The GORM write path ended in Updates(&entity), which skips zero-valued struct fields, so
+// clearing a title was silently a no-op: the old title stayed on disk and came straight back.
+// list.ListOptions.Title carries no `validate:"required"`, so that was reachable from the API.
+// The replacement is a plain UPDATE, which writes every column it is given.
+//
+// Nothing pinned the old behaviour, and reproducing it would have meant teaching the repo that
+// an empty string means "leave alone" — an ORM accident, not a rule anybody chose.
+func TestListUpdateCanClearTheTitle(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	a := newApp(t)
+
+	owner := a.newUser(t, "owner")
+	created := a.newList(t, owner.ID, "groceries")
+
+	updated, err := a.lists.Update(ctx, created.ID, owner.ID, list.ListOptions{
+		Status: list.ExecStatusProcessing,
+		Title:  "",
+	})
+	require.NoError(t, err)
+	require.Empty(t, updated.Title)
+
+	got, err := a.lists.GetByID(ctx, created.ID, owner.ID)
+	require.NoError(t, err)
+	require.Empty(t, got.Title, "an empty title is now persisted instead of being skipped")
+}
+
 func TestListGetByUserID(t *testing.T) {
 	t.Parallel()
 

@@ -16,15 +16,9 @@ import (
 
 //go:generate python $SQLC_HELPER
 
-// User is the GORM view of the users table, which this repo itself creates through
-// sqlgen.InitUsers. It exists only so that the GORM-based repos (favorite, list) can
-// declare their member associations against it.
-type User struct {
-	ID    string `gorm:"primaryKey;size:36"`
-	Login string `gorm:"size:255;uniqueIndex"`
-	Hash  string
-	Role  int32
-}
+// createIndexQuery duplicates the CREATE UNIQUE INDEX in schema.sql, because sqlc generates no
+// query for a CREATE INDEX statement.
+const createIndexQuery = `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login ON users(login)`
 
 type Repo struct {
 	queries *sqlgen.Queries
@@ -37,7 +31,29 @@ func NewRepo(ctx context.Context, conn sqlgen.DBTX) (*Repo, error) {
 		return nil, fmt.Errorf("can't init users table: %w", err)
 	}
 
+	if _, err := conn.ExecContext(ctx, createIndexQuery); err != nil {
+		return nil, fmt.Errorf("can't init users login index: %w", err)
+	}
+
 	return &Repo{queries: q}, nil
+}
+
+// LoadLogins resolves user ids to logins.
+//
+// It takes a sqlgen.DBTX rather than a *Repo so the list repo can call it with its own *sql.Tx
+// and read the logins inside its transaction, which is what GORM's Preload("Members.User") did.
+func LoadLogins(ctx context.Context, db sqlgen.DBTX, ids []string) (map[string]user.Login, error) {
+	rows, err := sqlgen.New(db).GetLoginsByIDList(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("can't get user logins from database: %w", err)
+	}
+
+	logins := make(map[string]user.Login, len(rows))
+	for _, row := range rows {
+		logins[row.ID] = user.Login(row.Login)
+	}
+
+	return logins, nil
 }
 
 func (r *Repo) GetByLogin(ctx context.Context, login user.Login) (user.User, error) {

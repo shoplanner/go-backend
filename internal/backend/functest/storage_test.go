@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/samber/mo"
 	"github.com/stretchr/testify/require"
 
@@ -16,8 +15,6 @@ import (
 	"go-backend/internal/backend/product"
 	"go-backend/internal/backend/shopmap"
 	"go-backend/internal/backend/user"
-	userRepo "go-backend/internal/backend/user/repo"
-	"go-backend/pkg/bd"
 	"go-backend/pkg/id"
 )
 
@@ -116,15 +113,20 @@ func TestForeignKeysAreEnforced_Desired(t *testing.T) {
 	require.Error(t, err)
 }
 
-// The single most migration-relevant fact in the schema: GORM's AutoMigrate rebuilds the
-// users table that sqlc created.
+// users is the one table with two shapes in the wild, and this is the whole of that story.
 //
-// user/repo/schema.sql declares `role int NOT NULL, login varchar(36) NOT NULL UNIQUE,
-// hash text NOT NULL`. Then favorite/list AutoMigrate reaches users through their member
-// associations and rewrites it as nullable `role`/`login`/`hash`, moving uniqueness out into
-// a separate index. Once GORM is gone, a *fresh* database will get the strict sqlc DDL while
-// every *existing* one keeps the loose GORM one — two different schemas behind the same code.
-func TestUsersTableIsRewrittenByAutoMigrate(t *testing.T) {
+// user/repo/schema.sql has always declared `role int NOT NULL, login varchar(36) NOT NULL
+// UNIQUE, hash text NOT NULL`. Before the migration, favorite/list AutoMigrate reached users
+// through their member associations and rebuilt it with those NOT NULLs dropped and the
+// uniqueness moved out into idx_users_login. CREATE TABLE IF NOT EXISTS cannot undo that, so a
+// database that GORM ever touched keeps the loose shape for good while a fresh one now gets the
+// strict DDL.
+//
+// That divergence is accepted rather than migrated, because the two enforce the same thing: the
+// strict shape is a superset of the loose one, and the repo creates idx_users_login explicitly
+// so uniqueness is indexed either way. What must never diverge is behaviour, which is what the
+// two halves of this test check against the two shapes.
+func TestUsersTableIsStrictOnAFreshDatabase(t *testing.T) {
 	t.Parallel()
 
 	a := newApp(t)
@@ -132,20 +134,42 @@ func TestUsersTableIsRewrittenByAutoMigrate(t *testing.T) {
 	info := a.tableInfo(t, "users")
 	require.Len(t, info, 4)
 
-	// SQLite lets a non-INTEGER PRIMARY KEY hold NULL unless NOT NULL is spelled out, and
-	// neither the sqlc DDL nor the GORM rewrite spells it out.
+	// SQLite lets a non-INTEGER PRIMARY KEY hold NULL unless NOT NULL is spelled out, and the
+	// sqlc DDL does not spell it out.
 	require.False(t, info["id"].notNull)
-	require.False(t, info["role"].notNull, "sqlc declared NOT NULL; AutoMigrate dropped it")
-	require.False(t, info["login"].notNull, "sqlc declared NOT NULL; AutoMigrate dropped it")
-	require.False(t, info["hash"].notNull, "sqlc declared NOT NULL; AutoMigrate dropped it")
+	require.True(t, info["role"].notNull)
+	require.True(t, info["login"].notNull)
+	require.True(t, info["hash"].notNull)
+
+	requireLoginIsUnique(t, a)
+}
+
+// The loose shape is the one on every deployed disk. Uniqueness has to hold there too, and it
+// does — through idx_users_login rather than through the column.
+func TestUsersTableFromALegacyDatabaseStillEnforcesUniqueLogins(t *testing.T) {
+	t.Parallel()
+
+	a := loadLegacyDB(t)
+
+	info := a.tableInfo(t, "users")
+	require.Len(t, info, 4)
+	require.False(t, info["role"].notNull, "the legacy shape is the one AutoMigrate left behind")
+	require.False(t, info["login"].notNull)
+	require.False(t, info["hash"].notNull)
 
 	var ddl string
 	require.NoError(t, a.sqlDB.QueryRow(
 		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`).Scan(&ddl))
 	require.NotContains(t, strings.ToUpper(ddl), "UNIQUE",
-		"the inline UNIQUE on login is gone; it now lives in idx_users_login")
+		"the inline UNIQUE on login is gone here; it lives in idx_users_login")
 
-	// Uniqueness itself survives, just enforced by the index instead of the column.
+	requireLoginIsUnique(t, a)
+}
+
+// requireLoginIsUnique asserts the index exists and actually rejects a duplicate login.
+func requireLoginIsUnique(t *testing.T, a *app) {
+	t.Helper()
+
 	require.Equal(t, 1, a.count(t,
 		`SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_users_login'`))
 
@@ -155,28 +179,7 @@ func TestUsersTableIsRewrittenByAutoMigrate(t *testing.T) {
 
 	_, err = a.sqlDB.Exec(`INSERT INTO users (id, role, login, hash) VALUES (?, ?, ?, ?)`,
 		uuid.NewString(), 2, "vasya", "hash")
-	require.Error(t, err, "idx_users_login still rejects duplicates")
-}
-
-// Booting only the sqlc user repo — the shape a GORM-free build will have — produces the
-// strict DDL. Compare with TestUsersTableIsRewrittenByAutoMigrate: same code path, different
-// resulting schema, depending on whether GORM ever touched the file.
-func TestUsersTableWithoutGormIsStrict(t *testing.T) {
-	t.Parallel()
-
-	db, err := sql.Open("sqlite3", t.TempDir()+"/users-only.db")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-
-	_, err = userRepo.NewRepo(context.Background(), bd.NewDB(db, zerolog.Nop()))
-	require.NoError(t, err)
-
-	var ddl string
-	require.NoError(t, db.QueryRow(
-		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`).Scan(&ddl))
-
-	require.Contains(t, strings.ToUpper(ddl), "NOT NULL")
-	require.Contains(t, strings.ToUpper(ddl), "UNIQUE")
+	require.Error(t, err, "idx_users_login rejects duplicates")
 }
 
 // The columns GORM left nullable. The `notNull` tag works, but ProductList.Title spells it
@@ -245,9 +248,11 @@ func TestOptionalFieldsBecomeSQLNull(t *testing.T) {
 	require.True(t, got.States[0].FormIndex.IsAbsent())
 }
 
-// Timestamps written through the GORM pool have to be readable through the database/sql pool,
-// because that is exactly what the sqlc rewrite will be doing to rows that GORM wrote.
-func TestTimestampsWrittenByGormAreReadableByDatabaseSQL(t *testing.T) {
+// A timestamp written through a repo has to come back out of the raw handle intact, with its
+// sub-second precision. This used to be a cross-pool check (GORM wrote, database/sql read); the
+// cross-driver half of it now lives in TestLegacyTimestampsAreReadable, which reads timestamps
+// that GORM really did write.
+func TestTimestampsAreReadableByDatabaseSQL(t *testing.T) {
 	t.Parallel()
 
 	a := newApp(t)
@@ -289,8 +294,9 @@ func TestTimestampsWrittenByDatabaseSQLRoundTrip(t *testing.T) {
 	require.Equal(t, created.CreatedAt.UTC(), got.CreatedAt.UTC())
 }
 
-// Both pools must agree on the stored text, or half the rows become unreadable after the
-// rewrite. Pin the actual layout rather than trusting the drivers to keep matching.
+// The stored text layout is a compatibility contract with every row already on disk, so pin it
+// rather than trusting the driver to keep formatting the same way. The timestamps in
+// testdata/legacy/gorm_v1.sql are in this exact layout, written by the pre-migration code.
 func TestTimestampStorageLayout(t *testing.T) {
 	t.Parallel()
 
@@ -300,24 +306,21 @@ func TestTimestampStorageLayout(t *testing.T) {
 	listModel := a.newList(t, owner.ID, "groceries")
 	created := a.newShopMap(t, owner.ID, "corner shop", []product.Category{"dairy"}, nil)
 
-	var gormWritten string
-	require.NoError(t, a.sqlDB.QueryRow(
-		`SELECT CAST(created_at AS TEXT) FROM product_lists WHERE id = ?`, listModel.ID.String(),
-	).Scan(&gormWritten))
-
-	var sqlcWritten string
-	require.NoError(t, a.sqlDB.QueryRow(
-		`SELECT CAST(created_at AS TEXT) FROM shop_maps WHERE id = ?`, created.ID.String(),
-	).Scan(&sqlcWritten))
-
-	// Both drivers are mattn/go-sqlite3 underneath, so both use the same layout.
 	const layout = "2006-01-02 15:04:05.999999999-07:00"
 
-	_, err := time.Parse(layout, gormWritten)
-	require.NoError(t, err, "unexpected layout for a GORM-written timestamp: %q", gormWritten)
+	for _, query := range []struct {
+		sql string
+		arg string
+	}{
+		{sql: `SELECT CAST(created_at AS TEXT) FROM product_lists WHERE id = ?`, arg: listModel.ID.String()},
+		{sql: `SELECT CAST(created_at AS TEXT) FROM shop_maps WHERE id = ?`, arg: created.ID.String()},
+	} {
+		var written string
+		require.NoError(t, a.sqlDB.QueryRow(query.sql, query.arg).Scan(&written))
 
-	_, err = time.Parse(layout, sqlcWritten)
-	require.NoError(t, err, "unexpected layout for an sqlc-written timestamp: %q", sqlcWritten)
+		_, err := time.Parse(layout, written)
+		require.NoError(t, err, "unexpected timestamp layout: %q", written)
+	}
 }
 
 // IDs are canonical lowercase hyphenated UUID text everywhere. Switching to BLOB storage or
@@ -349,13 +352,16 @@ func TestIdentifiersAreStoredAsCanonicalUUIDText(t *testing.T) {
 	}
 }
 
-// The two pools contend for the same file. A write held open on one blocks the other for the
-// driver's 5s busy timeout and then fails outright — the request does not queue, it errors.
-// Collapsing to a single pool during the migration removes this failure mode entirely, which
-// is a behaviour change worth noticing rather than discovering in production.
+// Two writers contend for the same file. A write held open on one connection blocks the other
+// for the driver's 5s busy timeout and then fails outright — the request does not queue, it
+// errors.
+//
+// Collapsing the two connection pools into one did *not* remove this: database/sql hands the
+// second writer a different connection from the same pool, and SQLite locks the file, not the
+// pool. Only MaxOpenConns(1) would serialise it. Pinned here so that stays a deliberate choice.
 //
 // This test deliberately pays the full 5s timeout; it is the only slow test in the package.
-func TestConcurrentWritersFromBothPoolsCollide(t *testing.T) {
+func TestConcurrentWritersCollide(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -368,12 +374,12 @@ func TestConcurrentWritersFromBothPoolsCollide(t *testing.T) {
 
 	defer func() { _ = tx.Rollback() }()
 
-	// Take a RESERVED lock on the file through the database/sql pool.
+	// Take a RESERVED lock on the file.
 	_, err = tx.ExecContext(ctx, `INSERT INTO users (id, role, login, hash) VALUES (?, ?, ?, ?)`,
 		uuid.NewString(), 2, "concurrent", "hash")
 	require.NoError(t, err)
 
-	// The GORM pool cannot get in while that transaction is open.
+	// No other connection can get in while that transaction is open.
 	_, err = a.lists.Create(ctx, owner.ID, list.ListOptions{
 		Status: list.ExecStatusPlanning,
 		Title:  "blocked",

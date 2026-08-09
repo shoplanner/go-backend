@@ -15,3 +15,27 @@ sql:
         output_querier_file_name: querier.go
         package: "sqlgen"
         out: "sqlgen"
+        # This file is copied into every repo package by tools/sqlc_helper.py, so the overrides
+        # below are the union of all of them; a column that a package does not have is ignored.
+        #
+        # They exist because the schema reproduces GORM's AutoMigrate output verbatim, and
+        # AutoMigrate never emitted NOT NULL for primary keys or for fields whose tag it failed
+        # to parse. sqlc therefore types them sql.NullString even though nothing ever writes a
+        # NULL there. GORM scanned the very same columns into plain strings, so pinning them to
+        # string here is exactly as safe as the code being replaced — and keeps NullString out
+        # of the domain mapping.
+        overrides:
+          - column: "products.id"
+            go_type: "string"
+          - column: "product_categories.id"
+            go_type: "string"
+          - column: "product_categories.name"
+            go_type: "string"
+          - column: "product_forms.id"
+            go_type: "string"
+          - column: "product_forms.product_id"
+            go_type: "string"
+          - column: "product_forms.name"
+            go_type: "string"
+          - column: "product_lists.title"
+            go_type: "string"

@@ -23,8 +23,8 @@ go test ./pkg/hashing/ -run TestHash  # single test
 go test ./pkg/hashing/ -run 'TestHash/TestName' -v   # single case inside a testify suite
 ```
 
-`CGO_ENABLED=1` and a C toolchain are required: the SQLite driver is `mattn/go-sqlite3` (pulled in via
-`gorm.io/driver/sqlite`). The Dockerfile installs `build-base sqlite-dev` for this reason.
+`CGO_ENABLED=1` and a C toolchain are required: the SQLite driver is `mattn/go-sqlite3`. The Dockerfile
+installs `build-base sqlite-dev` for this reason.
 
 Code generators are Go tools declared in `go.mod` (`tool` directives) and invoked through Python shims in `tools/`,
 so `python3` is also required for `task generate`:
@@ -33,10 +33,16 @@ so `python3` is also required for `task generate`:
   comments above an integer type (see `internal/backend/list/model.go`). Output: `*.enum.gen.go.go` — generated,
   never edit.
 - `tools/sqlc_helper.py` — copies `config/sqlc.yaml` into the repo package, runs `sqlc generate`, deletes the copy.
-  Triggered by `//go:generate python $SQLC_HELPER` in repo packages that have `schema.sql` + `query.sql`
-  (`internal/backend/user/repo`, `internal/backend/shopmap/repo`). Output goes to that package's `sqlgen/`.
-  The sqlc engine is `sqlite`, which has no `:copyfrom` — bulk inserts are plain `:exec` queries in a loop
-  inside a transaction (see `shopmap/repo/sqlite.go`).
+  Triggered by `//go:generate python $SQLC_HELPER` in every repo package; each has `schema.sql` + `query.sql` and
+  gets its own `sqlgen/`. The sqlc engine is `sqlite`, which has no `:copyfrom` — bulk inserts are plain `:exec`
+  queries in a loop inside a transaction (see `shopmap/repo/sqlite.go`).
+
+  Two sqlc limitations shape the code. It generates **nothing** for a `CREATE INDEX` statement, so every unique
+  index is additionally spelled out as a `createIndexQuery` const next to the repo and executed with a raw
+  `ExecContext`; the statement is duplicated in `schema.sql` so that file stays the whole schema. And it types a
+  column without `NOT NULL` as `sql.Null*` even when nothing ever writes a NULL there, which the `overrides` block
+  in `config/sqlc.yaml` pins back to plain Go types — that file is copied into every package, so the overrides are
+  the union across all of them.
 
 Both shims depend on env vars exported by `taskfile.yml` (`PROJECT_ROOT`, `GOENUM`, `SQLC_HELPER`), so run generation
 via `task generate`, not bare `go generate`.
@@ -56,18 +62,25 @@ read at startup.
 
 ## Architecture
 
-Single Gin HTTP server, `cmd/backend/main.go`, which is the only wiring point: it opens both a `database/sql` handle
-and a GORM handle over the *same* SQLite file, constructs every repo → service → API handler by hand, and registers
-them on the router. There is no DI container; adding a feature means adding a block to `main`.
+Single Gin HTTP server, `cmd/backend/main.go`, which is the only wiring point: it opens one `database/sql` handle
+over the SQLite file, constructs every repo → service → API handler by hand, and registers them on the router.
+There is no DI container; adding a feature means adding a block to `main`. Construction order matters — `user`
+first, because the member tables of `favorite` and `list` declare foreign keys against `users`.
 
 Each domain under `internal/backend/<domain>/` follows the same four-part layout:
 
 - `model.go` — domain types, enums (`// ENUM(...)`), invariants. Package name is the bare domain (`list`, `user`).
-- `repo/` — persistence. Two coexisting styles: **sqlc-generated** queries over `database/sql` (`user`, `shopmap`,
-  in `sqlite.go`) and **GORM** with `AutoMigrate` (`product`, `favorite`, `list`, in `gorm.go`). Repos create
-  their own tables at construction time (`InitUsers`, `AutoMigrate`, …), so there are no migration files.
-  `user/repo.User` is a GORM struct with no repo of its own: it only exists so the GORM repos can declare
-  member associations against the users table, which sqlc's `InitUsers` creates.
+- `repo/` — persistence: sqlc-generated queries over `database/sql`, in `sqlite.go`. Repos create their own
+  tables at construction time from the `Init*` queries in their `schema.sql`, so there are no migration files
+  and every `CREATE TABLE` is `IF NOT EXISTS`.
+
+  A repo only owns the tables in its own `schema.sql`. When one domain needs to read another's rows — `list` and
+  `favorite` both embed products, `list` members carry a login — it calls an exported loader on the owning
+  package: `productRepo.Load(ctx, db, ids, LoadOptions{…})` and `userRepo.LoadLogins(ctx, db, ids)`. Both take a
+  `sqlgen.DBTX` rather than a `*sql.DB`, which is what lets the caller pass its own `*sql.Tx` and read everything
+  inside one transaction. That is the replacement for GORM's nested `Preload`s, and `LoadOptions` exists because
+  the read paths genuinely differ: a list state's product is loaded with its category and forms, its *replacement*
+  product without forms, and the favorites write path loads products bare.
 - `service/` — business logic. Services declare the repo interface they need *locally* (consumer-side interfaces,
   e.g. `type repo interface {...}` in `list/service/service.go`); repos never import services.
 - `api/` — Gin handlers, one `RegisterREST(group, service, log)` per domain.
@@ -105,28 +118,40 @@ Handlers carry `@Summary`/`@Router`/`@Security ApiKeyAuth` annotations; `task ge
 
 ## Regression suite (`internal/backend/functest`)
 
-`internal/backend/functest` is a cross-domain functional suite that exists to make the GORM → sqlc migration
-verifiable. It wires the whole backend minus HTTP exactly as `cmd/backend/main.go` does — both a `database/sql`
-and a GORM handle over one temp SQLite file — and drives every service against it. Nothing is mocked.
+`internal/backend/functest` is a cross-domain functional suite written to make the GORM → sqlc migration
+verifiable, and kept afterwards as the storage regression suite. It wires the whole backend minus HTTP exactly
+as `cmd/backend/main.go` does — one `database/sql` handle over one temp SQLite file — and drives every service
+against it. Nothing is mocked.
 
-Three committed artifacts under `testdata/` are the actual contract; regenerate them with `task test:update`
-(`go test ./internal/backend/functest/ -update`) and **review the diff by hand**:
+Two committed artifact sets under `testdata/` are the actual contract:
 
-- `schema_gorm.sql` — the physical schema the repo constructors produce. There are no migration files in this
-  project, so this snapshot is the only written-down description of the on-disk format. A diff here means either
-  the new schema is compatible with deployed files, or a migration is owed. Constraint clauses are sorted during
-  normalisation because `AutoMigrate` emits foreign keys in map order.
-- `legacy/gorm_v1.sql` — a byte-exact dump of a database written by the GORM-era code, produced by
-  `TestGenerateLegacyDump` (skipped unless `-update`). `legacy_test.go` loads it and reads it back through the
-  services: this is what proves the post-migration code can still read data already on users' disks. When GORM is
-  deleted the generator goes with it; the dump and `legacy_test.go` stay.
-- `golden/*.json` — canonicalised snapshots of domain models. UUIDs become `<uuid:N>` (stable per value, so
-  relationships stay visible) and timestamps become `<ts>`. These catch what hand-written assertions miss: nil vs
-  empty slice, `mo.None` vs `mo.Some("")`, a dropped `Preload`, a reordered collection.
+- `schema.sql` — the physical schema the repo constructors produce, regenerated with `task test:update`
+  (`go test ./internal/backend/functest/ -update`) and **reviewed by hand**. There are no migration files in this
+  project, so this snapshot is the only written-down description of the on-disk format. A diff means either the
+  new schema is compatible with deployed files, or a migration is owed. `normalizeDDL` in `fixtures_test.go`
+  strips identifier quoting, collapses whitespace and sorts constraint clauses, so the comparison is about
+  structure rather than about which generator wrote the statement.
+- `golden/*.json` — canonicalised snapshots of domain models, also regenerated by `-update`. UUIDs become
+  `<uuid:N>` (stable per value, so relationships stay visible) and timestamps become `<ts>`. These catch what
+  hand-written assertions miss: nil vs empty slice, `mo.None` vs `mo.Some("")`, a dropped association, a
+  reordered collection.
+
+- `legacy/gorm_v1.sql` is different in kind: a byte-exact dump of a database written by the **pre-migration**
+  GORM code, and **frozen input that nothing regenerates**. `legacy_test.go` loads it and reads it back through
+  the current services; that is what proves the sqlc code still reads data already on users' disks. The
+  generator that produced it was deleted along with GORM on purpose — it drove the scenario through the repos,
+  so keeping it would mean `-update` quietly replacing the evidence with a re-recording of current behaviour.
+  Never hand-edit this file and never reintroduce a generator for it.
+
+`TestLegacyAndFreshDatabasesHaveTheSameShape` compares a legacy database against a fresh one column by column
+via `PRAGMA table_info`. `users` is the one accepted exception: GORM's `AutoMigrate` used to rebuild that table
+with its `NOT NULL`s dropped and uniqueness moved into `idx_users_login`, and `CREATE TABLE IF NOT EXISTS`
+cannot undo it — so deployed files keep the loose shape while fresh ones get the strict sqlc DDL. Both enforce
+the same constraints, and the repo creates `idx_users_login` explicitly so uniqueness is indexed either way.
 
 Known bugs are covered by a pair of tests: `..._CurrentBehaviour` is green and pins today's behaviour, and
 `..._Desired` is `t.Skip`ped with a pointer to its partner. When one gets fixed, the pair flips. Do not "fix" a
-`_CurrentBehaviour` test to look correct — its whole job is to fail loudly if the migration changes it by accident.
+`_CurrentBehaviour` test to look correct — its whole job is to fail loudly if storage work changes it by accident.
 
 ## Linting
 

@@ -29,3 +29,14 @@ WHERE
     id = ?
 LIMIT
     1;
+
+-- GetLoginsByIDList backs the list repo, whose members carry the user's login. It replaces
+-- GORM's Preload("Members.User").
+-- name: GetLoginsByIDList :many
+SELECT
+    id,
+    login
+FROM
+    users
+WHERE
+    id IN (sqlc.slice('ids'));
