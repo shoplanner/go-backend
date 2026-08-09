@@ -45,6 +45,16 @@ func RegisterWebSocket(r *gin.RouterGroup, listService listService, log zerolog.
 	r.GET("/lists/:id/ws", w.Listen)
 }
 
+// @Summary subscribe to changes of a product list
+// @Description Upgrades the connection to a WebSocket and streams list.Event messages
+// @Description until the client disconnects. No message is expected from the client.
+// @ID product-list-events
+// @Tags ProductList
+// @Param id path string true "id of product list"
+// @Produce json
+// @Success 101 "switching protocols"
+// @Router /lists/{id}/ws [get]
+// @Security ApiKeyAuth
 func (s *WebSocket) Listen(ctx *gin.Context) {
 	closeChan := make(chan struct{})
 	listID, ok := rerr.PathID[list.ProductList](ctx)

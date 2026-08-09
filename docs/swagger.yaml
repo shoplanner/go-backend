@@ -471,6 +471,28 @@ paths:
       summary: change order of products in product list
       tags:
       - ProductList
+  /lists/{id}/ws:
+    get:
+      description: |-
+        Upgrades the connection to a WebSocket and streams list.Event messages
+        until the client disconnects. No message is expected from the client.
+      operationId: product-list-events
+      parameters:
+      - description: id of product list
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: switching protocols
+      security:
+      - ApiKeyAuth: []
+      summary: subscribe to changes of a product list
+      tags:
+      - ProductList
   /product:
     post:
       consumes:
@@ -646,7 +668,7 @@ paths:
       responses: {}
       security:
       - ApiKeyAuth: []
-      summary: only reorder categories in given shop map
+      summary: adds current user to viewers of given shop map
       tags:
       - ShopMap
   /shopmap/id/{id}/reorder:

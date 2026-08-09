@@ -582,6 +582,38 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/lists/{id}/ws": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Upgrades the connection to a WebSocket and streams list.Event messages\nuntil the client disconnects. No message is expected from the client.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ProductList"
+                ],
+                "summary": "subscribe to changes of a product list",
+                "operationId": "product-list-events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of product list",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "switching protocols"
+                    }
+                }
+            }
+        },
         "/product": {
             "post": {
                 "security": [
@@ -848,7 +880,7 @@ const docTemplate = `{
                 "tags": [
                     "ShopMap"
                 ],
-                "summary": "only reorder categories in given shop map",
+                "summary": "adds current user to viewers of given shop map",
                 "operationId": "shopmap-join",
                 "parameters": [
                     {

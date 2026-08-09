@@ -216,7 +216,7 @@ func (h *Handler) ReorderMap(c *gin.Context) {
 	c.JSON(http.StatusOK, shopMap)
 }
 
-// @Summary	only reorder categories in given shop map
+// @Summary	adds current user to viewers of given shop map
 // @ID			shopmap-join
 // @Tags		ShopMap
 //
