@@ -391,29 +391,39 @@ func (q *Queries) GetViewersByMapID(ctx context.Context, mapID string) ([]ShopMa
 	return items, nil
 }
 
-const insertCategories = `-- name: InsertCategories :copyfrom
+const insertCategory = `-- name: InsertCategory :exec
 INSERT INTO
     shop_map_categories(map_id, number, category)
 VALUES
     (?, ?, ?)
 `
 
-type InsertCategoriesParams struct {
+type InsertCategoryParams struct {
 	MapID    string
-	Number   uint32
+	Number   int64
 	Category string
 }
 
-const insertViewers = `-- name: InsertViewers :copyfrom
+func (q *Queries) InsertCategory(ctx context.Context, arg InsertCategoryParams) error {
+	_, err := q.db.ExecContext(ctx, insertCategory, arg.MapID, arg.Number, arg.Category)
+	return err
+}
+
+const insertViewer = `-- name: InsertViewer :exec
 INSERT INTO
     shop_map_viewers(map_id, user_id)
 VALUES
     (?, ?)
 `
 
-type InsertViewersParams struct {
+type InsertViewerParams struct {
 	MapID  string
 	UserID string
+}
+
+func (q *Queries) InsertViewer(ctx context.Context, arg InsertViewerParams) error {
+	_, err := q.db.ExecContext(ctx, insertViewer, arg.MapID, arg.UserID)
+	return err
 }
 
 const updateShopMap = `-- name: UpdateShopMap :exec

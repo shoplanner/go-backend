@@ -12,7 +12,7 @@ import (
 const initShopMapCategories = `-- name: InitShopMapCategories :exec
 CREATE TABLE IF NOT EXISTS shop_map_categories (
     map_id varchar(36) NOT NULL,
-    number int UNSIGNED NOT NULL,
+    number integer NOT NULL,
     category varchar(255) NOT NULL,
     PRIMARY KEY (map_id, number),
     FOREIGN KEY(map_id) REFERENCES shop_maps(id)

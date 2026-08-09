@@ -44,7 +44,7 @@ func NewShopMapRepo(ctx context.Context, db *sql.DB) (*ShopMapRepo, error) {
 func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("DoltDB: can't start transaction: %w", err)
+		return fmt.Errorf("can't start transaction: %w", err)
 	}
 
 	defer func() { checkRollback(tx.Rollback()) }()
@@ -59,36 +59,15 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 		UpdatedAt: model.UpdatedAt.Time,
 	})
 	if err != nil {
-		return fmt.Errorf("can't insert shop map to DoltDB: %w", err)
+		return fmt.Errorf("can't insert shop map: %w", err)
 	}
 
-	if len(model.ViewerIDList) != 0 {
-		_, err = qtx.InsertViewers(
-			ctx,
-			lo.Map(model.ViewerIDList, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
-				return sqlgen.InsertViewersParams{
-					MapID:  model.ID.String(),
-					UserID: userID.String(),
-				}
-			}))
-		if err != nil {
-			return fmt.Errorf("can't insert viewers for shop map %s: %w", model.ID, err)
-		}
+	if err = insertViewers(ctx, qtx, model.ID, model.ViewerIDList); err != nil {
+		return fmt.Errorf("can't insert viewers for shop map %s: %w", model.ID, err)
 	}
 
-	if len(model.CategoryList) != 0 {
-		_, err = qtx.InsertCategories(
-			ctx,
-			lo.Map(model.CategoryList, func(category product.Category, index int) sqlgen.InsertCategoriesParams {
-				return sqlgen.InsertCategoriesParams{
-					MapID:    model.ID.String(),
-					Number:   uint32(index), //nolint:gosec // slice index can't be negative
-					Category: string(category),
-				}
-			}))
-		if err != nil {
-			return wrapErr(fmt.Errorf("can't insert categories of shop map %s: %w", model.ID, err))
-		}
+	if err = insertCategories(ctx, qtx, model.ID, model.CategoryList); err != nil {
+		return wrapErr(fmt.Errorf("can't insert categories of shop map %s: %w", model.ID, err))
 	}
 
 	return wrapErr(tx.Commit())
@@ -97,7 +76,7 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 func (s *ShopMapRepo) Delete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("can't start DoltDB transaction: %w", err)
+		return fmt.Errorf("can't start transaction: %w", err)
 	}
 	defer func() { checkRollback(tx.Rollback()) }()
 
@@ -150,7 +129,7 @@ func (s *ShopMapRepo) GetAndUpdate(
 func (s *ShopMapRepo) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return shopmap.ShopMap{}, fmt.Errorf("can't start DoltDB transaction: %w", err)
+		return shopmap.ShopMap{}, fmt.Errorf("can't start transaction: %w", err)
 	}
 	defer func() { checkRollback(tx.Rollback()) }()
 
@@ -262,15 +241,7 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap) 
 	if err = qtx.DeleteCategoriesByMapID(ctx, newModel.ID.String()); err != nil {
 		return fmt.Errorf("failed to clear old categories: %w", err)
 	}
-	_, err = qtx.InsertCategories(ctx,
-		lo.Map(newModel.CategoryList, func(item product.Category, index int) sqlgen.InsertCategoriesParams {
-			return sqlgen.InsertCategoriesParams{
-				MapID:    newModel.ID.String(),
-				Number:   uint32(index), //nolint:gosec // index can't be negative
-				Category: string(item),
-			}
-		}))
-	if err != nil {
+	if err = insertCategories(ctx, qtx, newModel.ID, newModel.CategoryList); err != nil {
 		return fmt.Errorf("failed to insert updated categories: %w", err)
 	}
 
@@ -278,15 +249,49 @@ func update(ctx context.Context, qtx *sqlgen.Queries, newModel shopmap.ShopMap) 
 		return fmt.Errorf("failed to clear all viewers: %w", err)
 	}
 
-	_, err = qtx.InsertViewers(ctx,
-		lo.Map(newModel.ViewerIDList, func(userID id.ID[user.User], _ int) sqlgen.InsertViewersParams {
-			return sqlgen.InsertViewersParams{
-				MapID:  newModel.ID.String(),
-				UserID: userID.String(),
-			}
-		}))
-	if err != nil {
+	if err = insertViewers(ctx, qtx, newModel.ID, newModel.ViewerIDList); err != nil {
 		return fmt.Errorf("failed to insert updated viewers: %w", err)
+	}
+
+	return nil
+}
+
+// SQLite has no bulk-load statement, so rows go in one INSERT at a time; every caller
+// already runs inside a transaction, which keeps this atomic.
+func insertViewers(
+	ctx context.Context,
+	qtx *sqlgen.Queries,
+	mapID id.ID[shopmap.ShopMap],
+	viewerIDList []id.ID[user.User],
+) error {
+	for _, userID := range viewerIDList {
+		err := qtx.InsertViewer(ctx, sqlgen.InsertViewerParams{
+			MapID:  mapID.String(),
+			UserID: userID.String(),
+		})
+		if err != nil {
+			return fmt.Errorf("can't insert viewer %s: %w", userID, err)
+		}
+	}
+
+	return nil
+}
+
+func insertCategories(
+	ctx context.Context,
+	qtx *sqlgen.Queries,
+	mapID id.ID[shopmap.ShopMap],
+	categoryList []product.Category,
+) error {
+	for index, category := range categoryList {
+		err := qtx.InsertCategory(ctx, sqlgen.InsertCategoryParams{
+			MapID:    mapID.String(),
+			Number:   int64(index),
+			Category: string(category),
+		})
+		if err != nil {
+			return fmt.Errorf("can't insert category %q: %w", category, err)
+		}
 	}
 
 	return nil
@@ -320,7 +325,7 @@ func entityToModel(
 
 func wrapErr(err error) error {
 	if err != nil {
-		return fmt.Errorf("shopmap DoltDB repo: %w", err)
+		return fmt.Errorf("shopmap sqlite repo: %w", err)
 	}
 
 	return nil

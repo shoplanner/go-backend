@@ -21,7 +21,7 @@ type CreateUserParams struct {
 	ID    string
 	Login string
 	Hash  string
-	Role  int32
+	Role  int64
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (sql.Result, error) {

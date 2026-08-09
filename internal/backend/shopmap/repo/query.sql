@@ -60,13 +60,13 @@ INSERT INTO
 VALUES
     (?, ?, ?, ?, ?);
 
--- name: InsertViewers :copyfrom
+-- name: InsertViewer :exec
 INSERT INTO
     shop_map_viewers(map_id, user_id)
 VALUES
     (?, ?);
 
--- name: InsertCategories :copyfrom
+-- name: InsertCategory :exec
 INSERT INTO
     shop_map_categories(map_id, number, category)
 VALUES

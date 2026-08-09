@@ -1,6 +1,6 @@
 version: "2"
 sql:
-  - engine: "mysql"
+  - engine: "sqlite"
     queries:
       - "query.sql"
       - "schema.sql"
@@ -9,7 +9,6 @@ sql:
     gen:
       go:
         sql_package: "database/sql"
-        sql_driver: "github.com/go-sql-driver/mysql"
         output_batch_file_name: batch.go
         output_db_file_name: db.go
         output_models_file_name: models.go

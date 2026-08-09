@@ -4,44 +4,40 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"gorm.io/gorm"
 
 	"go-backend/internal/backend/user"
 	"go-backend/internal/backend/user/repo/sqlgen"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
-	"go-backend/pkg/mymysql"
+	"go-backend/pkg/mysqlite"
 )
 
 //go:generate python $SQLC_HELPER
 
+// User is the GORM view of the users table, which this repo itself creates through
+// sqlgen.InitUsers. It exists only so that the GORM-based repos (favorite, list) can
+// declare their member associations against it.
 type User struct {
 	ID    string `gorm:"primaryKey;size:36"`
-	Login string `gorm:"size:255"`
+	Login string `gorm:"size:255;uniqueIndex"`
 	Hash  string
 	Role  int32
 }
 
 type Repo struct {
 	queries *sqlgen.Queries
-	db      *gorm.DB
 }
 
-func NewRepo(ctx context.Context, conn sqlgen.DBTX, gormDB *gorm.DB) (*Repo, error) {
+func NewRepo(ctx context.Context, conn sqlgen.DBTX) (*Repo, error) {
 	q := sqlgen.New(conn)
-
-	if err := gormDB.AutoMigrate(new(User)); err != nil {
-		return nil, fmt.Errorf("can't create user tables: %w", err)
-	}
 
 	if err := q.InitUsers(ctx); err != nil {
 		return nil, fmt.Errorf("can't init users table: %w", err)
 	}
 
-	return &Repo{queries: q, db: gormDB}, nil
+	return &Repo{queries: q}, nil
 }
 
 func (r *Repo) GetByLogin(ctx context.Context, login user.Login) (user.User, error) {
@@ -58,12 +54,10 @@ func (r *Repo) Create(ctx context.Context, model user.User) error {
 		ID:    model.ID.String(),
 		Login: string(model.Login),
 		Hash:  string(model.PasswordHash),
-		Role:  int32(model.Role),
+		Role:  int64(model.Role),
 	})
-	if sqlErr, casted := lo.ErrorsAs[*mysql.MySQLError](err); casted {
-		if sqlErr.Number == mymysql.DublicateEntryNumber {
-			return fmt.Errorf("%w: such user already exists", myerr.ErrAlreadyExists)
-		}
+	if mysqlite.IsUniqueViolation(err) {
+		return fmt.Errorf("%w: such user already exists", myerr.ErrAlreadyExists)
 	}
 	if err != nil {
 		return fmt.Errorf("can't insert user in database: %w", err)
@@ -75,7 +69,7 @@ func (r *Repo) Create(ctx context.Context, model user.User) error {
 func (r *Repo) GetAll(ctx context.Context) ([]user.User, error) {
 	models, err := r.queries.GetAll(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("can't get users from Dolt DB: %w", err)
+		return nil, fmt.Errorf("can't get users from database: %w", err)
 	}
 
 	return lo.Map(models, sqlcToUser), nil
@@ -84,7 +78,7 @@ func (r *Repo) GetAll(ctx context.Context) ([]user.User, error) {
 func (r *Repo) GetByID(ctx context.Context, userID id.ID[user.User]) (user.User, error) {
 	model, err := r.queries.GetByID(ctx, userID.String())
 	if err != nil {
-		return sqlcToUser(model, 0), fmt.Errorf("can't get user %s from DoltDB: %w", userID, err)
+		return sqlcToUser(model, 0), fmt.Errorf("can't get user %s from database: %w", userID, err)
 	}
 
 	return sqlcToUser(model, 0), nil

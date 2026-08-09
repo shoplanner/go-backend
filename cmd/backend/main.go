@@ -111,7 +111,7 @@ func main() {
 
 	sqlAdapter := bd.NewDB(db, parentLogger)
 
-	userDB, err := userRepo.NewRepo(ctx, sqlAdapter, gormDB)
+	userDB, err := userRepo.NewRepo(ctx, sqlAdapter)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("initializing user repo")
 	}

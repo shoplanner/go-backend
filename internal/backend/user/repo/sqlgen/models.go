@@ -6,7 +6,7 @@ package sqlgen
 
 type User struct {
 	ID    string
-	Role  int32
+	Role  int64
 	Login string
 	Hash  string
 }

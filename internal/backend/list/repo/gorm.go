@@ -21,7 +21,7 @@ import (
 	"go-backend/pkg/god"
 	"go-backend/pkg/id"
 	"go-backend/pkg/myerr"
-	"go-backend/pkg/mymysql"
+	"go-backend/pkg/mysqlite"
 )
 
 type ProductListState struct {
@@ -170,7 +170,7 @@ func (r *Repo) GetAndUpdate(
 		return err
 	})
 	if err != nil {
-		return list.ProductList{}, fmt.Errorf("%w: transaction failed: %w", mymysql.GetType(err), err)
+		return list.ProductList{}, fmt.Errorf("%w: transaction failed: %w", mysqlite.GetType(err), err)
 	}
 
 	return model, nil
@@ -239,7 +239,7 @@ func (r *Repo) ApplyOrder(
 
 		err = tx.WithContext(ctx).Exec(query, args...).Error
 		if err != nil {
-			return fmt.Errorf("can't apply order to DoltDB: %w", err)
+			return fmt.Errorf("can't apply order: %w", err)
 		}
 
 		return nil

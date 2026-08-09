@@ -3,7 +3,6 @@ coverage.out
 bin/**
 .idea
 *.lua
-dolt/**
 **.exe
 redis_data/**
 **.db

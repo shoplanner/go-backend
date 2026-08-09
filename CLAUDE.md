@@ -33,7 +33,8 @@ so `python3` is also required for `task generate`:
 - `tools/sqlc_helper.py` — copies `config/sqlc.yaml` into the repo package, runs `sqlc generate`, deletes the copy.
   Triggered by `//go:generate python $SQLC_HELPER` in repo packages that have `schema.sql` + `query.sql`
   (`internal/backend/user/repo`, `internal/backend/shopmap/repo`). Output goes to that package's `sqlgen/`.
-  The sqlc engine is still configured as `mysql` even though the app now runs on SQLite.
+  The sqlc engine is `sqlite`, which has no `:copyfrom` — bulk inserts are plain `:exec` queries in a loop
+  inside a transaction (see `shopmap/repo/sqlite.go`).
 
 Both shims depend on env vars exported by `taskfile.yml` (`PROJECT_ROOT`, `GOENUM`, `SQLC_HELPER`), so run generation
 via `task generate`, not bare `go generate`.
@@ -48,8 +49,8 @@ Two separate sources, both required:
   private key, despite the name). Parsed by `config.ParseEnv`. `LOG_NO_SYSLOG=1` sends logs to stderr instead of
   syslog (see `cmd/backend/logger_syslog.go` / `logger_windows.go`, split by build tag).
 
-`README.md` is stale: it documents a MySQL/Dolt + Redis deployment and a `task deps` target that no longer exist.
-Trust `internal/backend/config/config.go` and `config/systemd/shoplanner.service` instead.
+`internal/backend/config/config.go` and `config/systemd/shoplanner.service` are the authority on what is actually
+read at startup.
 
 ## Architecture
 
@@ -60,9 +61,11 @@ them on the router. There is no DI container; adding a feature means adding a bl
 Each domain under `internal/backend/<domain>/` follows the same four-part layout:
 
 - `model.go` — domain types, enums (`// ENUM(...)`), invariants. Package name is the bare domain (`list`, `user`).
-- `repo/` — persistence. Two coexisting styles: **sqlc-generated** queries (`user`, `shopmap` — files still named
-  `dolt.go` for historical reasons) and **GORM** with `AutoMigrate` (`product`, `favorite`, `list`). Repos create
+- `repo/` — persistence. Two coexisting styles: **sqlc-generated** queries over `database/sql` (`user`, `shopmap`,
+  in `sqlite.go`) and **GORM** with `AutoMigrate` (`product`, `favorite`, `list`, in `gorm.go`). Repos create
   their own tables at construction time (`InitUsers`, `AutoMigrate`, …), so there are no migration files.
+  `user/repo.User` is a GORM struct with no repo of its own: it only exists so the GORM repos can declare
+  member associations against the users table, which sqlc's `InitUsers` creates.
 - `service/` — business logic. Services declare the repo interface they need *locally* (consumer-side interfaces,
   e.g. `type repo interface {...}` in `list/service/service.go`); repos never import services.
 - `api/` — Gin handlers, one `RegisterREST(group, service, log)` per domain.
@@ -78,6 +81,8 @@ channels; mutations fan out `list.Event` values and `list/api/websocket.go` stre
 
 ### Shared conventions (`pkg/`)
 
+- `pkg/mysqlite` — maps `sqlite3.Error` constraint failures onto `myerr` sentinels (`GetType`,
+  `IsUniqueViolation`, `IsForeignKeyViolation`). Use it wherever a driver error has to become a status code.
 - `pkg/myerr` — the five sentinel errors (`ErrInvalidArgument`, `ErrNotFound`, `ErrAlreadyExists`, `ErrForbidden`,
   `ErrInternal`). Services wrap these with `fmt.Errorf("%w: ...")`; `pkg/api/rest/rerr.BaseHandler.HandleError`
   maps them to HTTP status codes. Return one of these from a service or the API will report 500.
