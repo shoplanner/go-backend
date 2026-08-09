@@ -4,6 +4,5 @@ bin/**
 .idea
 *.lua
 **.exe
-redis_data/**
 **.db
 **.tar

@@ -108,7 +108,6 @@ linters:
         - ^golang.org/x/tools/go/analysis.Analyzer$
         - ^google.golang.org/protobuf/.+Options$
         - ^gopkg.in/yaml.v3.Node$
-        - ^github.com/redis/go-redis/v9.+
         - ^gorm.io/gorm.Session$
     funlen:
       lines: 100

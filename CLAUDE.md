@@ -73,7 +73,8 @@ Each domain under `internal/backend/<domain>/` follows the same four-part layout
 Auth is layered in `main` by registration order: `auth` and `user` routes are registered on `/api/v1` *before*
 `apiGroup.Use(jwtMiddleware.Middleware())`, so everything registered after it is authenticated. Handlers read the
 caller via `authAPI.GetUserID(ctx)`, which the middleware puts in the Gin context. Access/refresh tokens are ES256
-JWTs (`auth/provider/jwt.go`); `auth/repo/redis.go` exists but is currently not wired into `main`.
+JWTs (`auth/provider/jwt.go`) and are fully stateless: there is no token store, so `Logout` is a no-op and
+issued tokens cannot be revoked before they expire.
 
 Real-time list updates: `list/service` keeps an in-memory `map[providerID]*eventProvider` of per-(user, list)
 channels; mutations fan out `list.Event` values and `list/api/websocket.go` streams them over

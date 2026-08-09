@@ -124,26 +124,14 @@ func (s *Service) IsAccessTokenValid(ctx context.Context, encodedToken auth.Enco
 	if err != nil {
 		return opts, fmt.Errorf("decoding access token failed: %w", err)
 	}
-	//
-	// tokenID, state, err := s.accessRepo.GetByID(ctx, opts.ID)
-	// if err != nil {
-	// 	return opts, fmt.Errorf("can't get full access token from storage: %w", err)
-	// }
-	// if state.Status == auth.TokenStatusRevoked {
-	// 	return opts, fmt.Errorf("%w: token %s already revoked", myerr.ErrForbidden, tokenID.ID)
-	// }
-	//
-	// if time.Now().UTC().Compare(opts.Expires.UTC()) != -1 {
-	// 	return opts, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
-	// }
-	// if time.Now().UTC().Compare(opts.IssuedAt.UTC()) != 1 {
-	// 	return opts, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
-	// }
-	//
+	// Tokens are stateless: expiry and signature are checked by the encoder, and there
+	// is no revocation store to consult.
 	return opts, nil
 }
 
-func (s *Service) Logout(ctx context.Context, userID id.ID[user.User], deviceID auth.DeviceID) error {
+// Logout is a no-op: issued tokens are stateless and cannot be revoked, they only
+// expire. Kept so the REST layer keeps a place to call once revocation exists.
+func (s *Service) Logout(_ context.Context, _ id.ID[user.User], _ auth.DeviceID) error {
 	return nil
 }
 
@@ -197,18 +185,5 @@ func (s *Service) getNewTokens(ctx context.Context, userModel user.User, deviceI
 	if err != nil {
 		return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{}, fmt.Errorf("can't encode token: %w", err)
 	}
-	//
-	// _, err = lo.NewTransaction[any]().Then(
-	// 	func(_ any) (any, error) { return nil, s.refreshRepo.Set(ctx, refreshToken.TokenID, refreshToken.State) },
-	// 	func(_ any) any { return s.refreshRepo.DeleteByID(ctx, refreshToken.ID) },
-	// ).Then(
-	// 	func(_ any) (any, error) { return nil, s.accessRepo.Set(ctx, accessToken.TokenID, accessToken.State) },
-	// 	func(_ any) any { return s.accessRepo.DeleteByID(ctx, accessToken.ID) },
-	// ).Process(nil)
-	// if err != nil {
-	// 	return auth.AccessToken{}, auth.RefreshToken{}, id.ID[user.User]{},
-	// 		fmt.Errorf("can't save tokens to storage: %w", err)
-	// }
-
 	return accessToken, refreshToken, userModel.ID, nil
 }

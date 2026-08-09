@@ -7,7 +7,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/redis/rueidis v1.0.51
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/mo v1.13.0
 	github.com/sethvargo/go-envconfig v1.1.0
