@@ -112,5 +112,3 @@ Handlers carry `@Summary`/`@Router`/`@Security ApiKeyAuth` annotations; `task ge
 - `err113` — no dynamic `errors.New` at call sites; define sentinels or wrap `myerr` values.
 - `nolintlint` requires an explanation comment on `//nolint` directives (except `funlen`, `gocognit`, `lll`).
 - `testpackage` — tests live in `package <pkg>_test`; existing tests use `stretchr/testify` suites.
-
-`.golangci.bck.yml` is an unused backup; ignore it.
