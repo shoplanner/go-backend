@@ -31,6 +31,14 @@ const (
 	RefreshTokenType TokenType = "refresh"
 )
 
+var (
+	errNotRefreshToken = errors.New("non refresh token passed")
+	errNotAccessToken  = errors.New("non access token passed")
+	errNoTokenID       = errors.New("token id is not passed")
+	errNoDeviceID      = errors.New("device id is not passed")
+	errNoRole          = errors.New("role is not passed")
+)
+
 type JWTProvider struct {
 	privateKey *ecdsa.PrivateKey
 }
@@ -92,26 +100,27 @@ func (p *JWTProvider) DecodeRefreshToken(_ context.Context, encoded auth.Encoded
 	_, err := jwt.ParseWithClaims(string(encoded), &claims, func(_ *jwt.Token) (any, error) {
 		return &p.privateKey.PublicKey, nil
 	})
-	if errors.Is(err, jwt.ErrTokenExpired) {
+	switch {
+	case errors.Is(err, jwt.ErrTokenExpired):
 		return auth.RefreshTokenOptions{}, fmt.Errorf("%w: refresh token", auth.ErrTokenExpired)
-	} else if errors.Is(err, jwt.ErrTokenUsedBeforeIssued) {
+	case errors.Is(err, jwt.ErrTokenUsedBeforeIssued):
 		return auth.RefreshTokenOptions{}, fmt.Errorf("%w: refresh token", auth.ErrTokenNotActive)
-	} else if err != nil {
+	case err != nil:
 		return auth.RefreshTokenOptions{}, fmt.Errorf("can't verify token: %w", err)
 	}
 
 	tokenType, passed := claims[typeClaim].(string)
 	if !passed {
-		return auth.RefreshTokenOptions{}, errors.New("non refresh token passed")
+		return auth.RefreshTokenOptions{}, errNotRefreshToken
 	}
 
 	if tokenType != string(RefreshTokenType) {
-		return auth.RefreshTokenOptions{}, errors.New("non refresh token passed")
+		return auth.RefreshTokenOptions{}, errNotRefreshToken
 	}
 
 	rawTokenID, passed := claims[tokenIDClaim].(string)
 	if !passed {
-		return auth.RefreshTokenOptions{}, errors.New("token id isn't passed")
+		return auth.RefreshTokenOptions{}, errNoTokenID
 	}
 
 	tokenID, err := uuid.Parse(rawTokenID)
@@ -138,7 +147,7 @@ func (p *JWTProvider) DecodeRefreshToken(_ context.Context, encoded auth.Encoded
 
 	rawDeviceID, passed := claims[deviceIDClaim].(string)
 	if !passed {
-		return opts, errors.New("device id is not passed")
+		return opts, errNoDeviceID
 	}
 
 	return auth.RefreshTokenOptions{
@@ -162,25 +171,27 @@ func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedA
 		return &p.privateKey.PublicKey, nil
 	})
 
-	if errors.Is(err, jwt.ErrTokenExpired) {
+	switch {
+	case errors.Is(err, jwt.ErrTokenExpired):
 		return auth.AccessTokenOptions{}, fmt.Errorf("%w: access token", auth.ErrTokenExpired)
-	} else if errors.Is(err, jwt.ErrTokenUsedBeforeIssued) {
+	case errors.Is(err, jwt.ErrTokenUsedBeforeIssued):
 		return auth.AccessTokenOptions{}, fmt.Errorf("%w: access token", auth.ErrTokenNotActive)
-	} else if err != nil {
+	case err != nil:
 		return auth.AccessTokenOptions{}, fmt.Errorf("JWT EcDSA decoding: %w", err)
 	}
+
 	rawTokenID, passed := claims[tokenIDClaim].(string)
 	if !passed {
-		return auth.AccessTokenOptions{}, errors.New("token id is not passed")
+		return auth.AccessTokenOptions{}, errNoTokenID
 	}
 
 	tokenType, passed := claims[typeClaim].(string)
 	if !passed {
-		return auth.AccessTokenOptions{}, errors.New("non access token passed")
+		return auth.AccessTokenOptions{}, errNotAccessToken
 	}
 
 	if tokenType != string(AccessTokenType) {
-		return auth.AccessTokenOptions{}, errors.New("non access token passed")
+		return auth.AccessTokenOptions{}, errNotAccessToken
 	}
 
 	tokenID, err := uuid.Parse(rawTokenID)
@@ -205,7 +216,7 @@ func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedA
 	}
 	rawRole, passed := claims[roleClaim].(string)
 	if !passed {
-		return auth.AccessTokenOptions{}, errors.New("role is not passed")
+		return auth.AccessTokenOptions{}, errNoRole
 	}
 	role, err := user.ParseRole(rawRole)
 	if err != nil {
@@ -214,7 +225,7 @@ func (p *JWTProvider) DecodeAccessToken(_ context.Context, encoded auth.EncodedA
 
 	rawDeviceID, passed := claims[deviceIDClaim].(string)
 	if !passed {
-		return auth.AccessTokenOptions{}, errors.New("device id is not passed")
+		return auth.AccessTokenOptions{}, errNoDeviceID
 	}
 
 	return auth.AccessTokenOptions{

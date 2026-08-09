@@ -40,11 +40,22 @@ func NewShopMapRepo(ctx context.Context, db *sql.DB) (*ShopMapRepo, error) {
 	return &ShopMapRepo{queries: queries, db: db}, nil
 }
 
+// beginTx opens a read-write transaction with the driver defaults; it exists so the
+// fully-spelled TxOptions literal lives in exactly one place.
+func (s *ShopMapRepo) beginTx(ctx context.Context) (*sql.Tx, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault, ReadOnly: false})
+	if err != nil {
+		return nil, fmt.Errorf("can't start transaction: %w", err)
+	}
+
+	return tx, nil
+}
+
 // Create implements service.repo.
 func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return fmt.Errorf("can't start transaction: %w", err)
+		return err
 	}
 
 	defer func() { checkRollback(tx.Rollback()) }()
@@ -74,9 +85,9 @@ func (s *ShopMapRepo) Create(ctx context.Context, model shopmap.ShopMap) error {
 }
 
 func (s *ShopMapRepo) Delete(ctx context.Context, mapID id.ID[shopmap.ShopMap]) error {
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return fmt.Errorf("can't start transaction: %w", err)
+		return err
 	}
 	defer func() { checkRollback(tx.Rollback()) }()
 
@@ -100,9 +111,9 @@ func (s *ShopMapRepo) GetAndUpdate(
 	mapID id.ID[shopmap.ShopMap],
 	updateFunc func(shopmap.ShopMap) (shopmap.ShopMap, error),
 ) (shopmap.ShopMap, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return shopmap.ShopMap{}, fmt.Errorf("can't start transaction: %w", err)
+		return shopmap.ShopMap{}, err
 	}
 	defer func() { checkRollback(tx.Rollback()) }()
 
@@ -127,9 +138,9 @@ func (s *ShopMapRepo) GetAndUpdate(
 
 // GetByID implements service.repo.
 func (s *ShopMapRepo) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap]) (shopmap.ShopMap, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return shopmap.ShopMap{}, fmt.Errorf("can't start transaction: %w", err)
+		return shopmap.ShopMap{}, err
 	}
 	defer func() { checkRollback(tx.Rollback()) }()
 
@@ -145,9 +156,9 @@ func (s *ShopMapRepo) GetByID(ctx context.Context, mapID id.ID[shopmap.ShopMap])
 
 // GetByUserID implements service.repo.
 func (s *ShopMapRepo) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]shopmap.ShopMap, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("can't start transaction: %w", err)
+		return nil, err
 	}
 
 	defer func() { checkRollback(tx.Rollback()) }()

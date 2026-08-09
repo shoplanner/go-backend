@@ -104,6 +104,7 @@ func sqlcToUser(item sqlgen.User, _ int) user.User {
 	userID, _ := uuid.Parse(item.ID)
 	return user.User{
 		ID:           id.ID[user.User]{UUID: userID},
+		//nolint:gosec // role is written by this package from a user.Role, so it always fits back into int32
 		Role:         user.Role(item.Role),
 		Login:        user.Login(item.Login),
 		PasswordHash: user.Hash(item.Hash),

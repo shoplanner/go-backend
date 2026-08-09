@@ -5,6 +5,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	// registers the swag-generated OpenAPI spec that ginSwagger serves below.
 	_ "go-backend/docs"
 )
 

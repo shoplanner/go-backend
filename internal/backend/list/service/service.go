@@ -208,6 +208,7 @@ func (s *Service) GetByUserID(ctx context.Context, userID id.ID[user.User]) ([]l
 func (s *Service) AppendMembers(
 	ctx context.Context,
 	listID id.ID[list.ProductList],
+	//nolint:revive // kept in the signature for the caller's sake until the FIXME'd role check below is resolved
 	userID id.ID[user.User],
 	members []list.MemberOptions,
 ) (

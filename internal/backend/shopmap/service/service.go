@@ -95,12 +95,12 @@ func (s *Service) RemoveViewerList(
 
 		toDelete := lo.SliceToMap(viewerIDs, ph.EmptyStruct)
 		if _, found := toDelete[shopMap.OwnerID]; found {
-			return shopMap, errors.New("can't delete owner")
+			return shopMap, fmt.Errorf("%w: can't delete owner", myerr.ErrInvalidArgument)
 		}
 
 		for _, viewerID := range shopMap.ViewerIDList {
 			if _, ok := toDelete[viewerID]; !ok {
-				errs = append(errs, fmt.Errorf("viewer with id %d do not exist", viewerID))
+				errs = append(errs, fmt.Errorf("%w: viewer with id %s do not exist", myerr.ErrNotFound, viewerID))
 			}
 		}
 

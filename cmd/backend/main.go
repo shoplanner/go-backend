@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -70,7 +69,13 @@ func main() {
 	}
 	parentLogger.Info().Any("config", appCfg).Msg("loaded")
 
-	listener, err := net.Listen(appCfg.Service.Net, fmt.Sprintf("%s:%d", appCfg.Service.Host, appCfg.Service.Port))
+	var listenCfg net.ListenConfig
+
+	listener, err := listenCfg.Listen(
+		ctx,
+		appCfg.Service.Net,
+		fmt.Sprintf("%s:%d", appCfg.Service.Host, appCfg.Service.Port),
+	)
 	if err != nil {
 		parentLogger.Fatal().Err(err).Msg("can't start listening")
 	}
@@ -96,7 +101,7 @@ func main() {
 
 	db, err := sql.Open("sqlite3", envCfg.Database.Path)
 	if err != nil {
-		log.Fatal(err)
+		parentLogger.Fatal().Err(err).Msg("can't open database")
 	}
 	defer db.Close()
 
@@ -176,12 +181,15 @@ func main() {
 	parentLogger.Info().Msg("server stopped")
 }
 
-var ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA")
+var (
+	ErrUnexpectedPrivateKeyType = errors.New("provided private key is not ECDSA")
+	ErrInvalidPrivateKey        = errors.New("private key is invalid")
+)
 
 func decodeECDSA(pemEncoded string) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemEncoded))
 	if block == nil || len(block.Bytes) == 0 {
-		return nil, errors.New("private key is invalid")
+		return nil, ErrInvalidPrivateKey
 	}
 
 	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)

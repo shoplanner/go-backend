@@ -52,7 +52,7 @@ func (s *Service) Create(ctx context.Context, options user.CreateOptions) (user.
 		return user.User{}, fmt.Errorf("%w: user exists", myerr.ErrAlreadyExists)
 	}
 
-	if err := s.validator.StructCtx(ctx, options); err != nil {
+	if err = s.validator.StructCtx(ctx, options); err != nil {
 		return user.User{}, fmt.Errorf("%w: %w", myerr.ErrInvalidArgument, err)
 	}
 

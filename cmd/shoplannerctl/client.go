@@ -21,5 +21,5 @@ func NewClient(addr string, username, password string) *Client {
 	}
 }
 
-func (c *Client) auth(ctx context.Context) {
+func (c *Client) auth(ctx context.Context) { //nolint:unused,revive // stub, shoplannerctl is not wired up yet
 }
