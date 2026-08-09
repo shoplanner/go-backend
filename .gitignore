@@ -1,6 +1,7 @@
 .env
 coverage.out
 bin/**
+dist/**
 .idea
 *.lua
 **.exe

@@ -1,0 +1,13 @@
+Package: shoplanner-backend
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Dmitriy Tikhomirov <uroborosq@gmail.com>
+Section: net
+Priority: optional
+Depends: libc6 (>= @LIBC@), openssl, systemd, init-system-helpers (>= 1.54)
+Description: ShoPlanner backend
+ HTTP API server for ShoPlanner: shopping lists, favorites, products and shop
+ maps, backed by a local SQLite database.
+ .
+ Runs as the shoplanner.service systemd unit. Configuration lives in
+ /etc/shoplanner/backend.yml, state in /var/lib/shoplanner.

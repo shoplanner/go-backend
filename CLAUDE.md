@@ -9,13 +9,14 @@ necessarily installed on PATH — the plain `go` equivalents are listed alongsid
 
 ```bash
 task generate        # swag init (-g cmd/backend/main.go) + go generate ./...
-task build           # runs generate, then: go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
+task build           # runs generate, then: go build -ldflags="-w -s" -o bin/backend ./cmd/backend
 task run             # builds and runs: bin/backend --config config/backend.yml
 task test            # go test ./... -race
 task test:update     # regenerates internal/backend/functest/testdata (see Regression suite)
 task lint            # golangci-lint run
 task fmt             # swag fmt + go fmt ./...
 task export          # docker buildx image -> shoplanner.tar
+task package:deb     # packaging/deb/build.sh -> dist/shoplanner-backend_<version>_<arch>.deb
 
 go build ./...                       # compile everything (needs CGO_ENABLED=1, see below)
 go test ./...                        # all tests
@@ -25,6 +26,28 @@ go test ./pkg/hashing/ -run 'TestHash/TestName' -v   # single case inside a test
 
 `CGO_ENABLED=1` and a C toolchain are required: the SQLite driver is `mattn/go-sqlite3`. The Dockerfile
 installs `build-base sqlite-dev` for this reason.
+
+## Debian packaging (`packaging/deb/`)
+
+`task package:deb` (i.e. `packaging/deb/build.sh`) produces a Debian 13 (trixie) `.deb` in `dist/`. Because the
+binary is cgo-linked against glibc it has to be compiled on the distribution it targets, so the whole thing —
+compile *and* `dpkg-deb` — runs inside `golang:1.25.5-trixie`; the host needs only docker with buildx. The final
+`deb` stage is `scratch` holding just the package, and the script exports it with `--output type=local`.
+The package version comes from the commit, not from tags: `<commits on HEAD>.g<short sha>` (`120.gb344fdc`, plus
+`.dirty` for an unclean tree). The commit count leads because a Debian version must start with a digit and must
+sort — dpkg compares it numerically, so every later commit is an upgrade, which a bare sha would not be.
+Environment overrides: `VERSION`, `REVISION`, `OUT_DIR`, and `PLATFORM` (e.g. `linux/arm64`, needs qemu — the
+package's `Architecture:` comes from `dpkg --print-architecture` inside the build, so it always matches what was
+actually compiled).
+
+The package ships `/usr/bin/shoplanner`, `config/systemd/shoplanner.service`, `config/backend.yml` as a conffile
+at `/etc/shoplanner/backend.yml`, and `generate-key.sh`. `go generate`/swag are *not* run — `docs/` and every
+`*.gen.go`/`sqlgen/` file is committed.
+
+The unit uses `DynamicUser=yes`, so the owning UID only exists while the service runs. That is why the ECDSA
+signing key is created by an `ExecStartPre` into `StateDirectory=` (`/var/lib/shoplanner/jwt-private.pem`) rather
+than by `postinst`: `ConfigurationDirectory=` stays root-owned under `DynamicUser`, so a key in `/etc` would be
+unreadable to the service. `purge` deletes `/var/lib/shoplanner`, taking the database and the key with it.
 
 Code generators are Go tools declared in `go.mod` (`tool` directives) and invoked through Python shims in `tools/`,
 so `python3` is also required for `task generate`:

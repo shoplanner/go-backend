@@ -17,7 +17,8 @@ tasks:
   build:
     deps: [generate]
     cmds:
-      - go build -ldflags="-w -s" -o bin/backend cmd/backend/main.go
+      # The package, not main.go alone: newLogWriter lives in the build-tagged logger_*.go siblings.
+      - go build -ldflags="-w -s" -o bin/backend ./cmd/backend
   test:
     cmds:
       - go test ./... -race
@@ -40,3 +41,8 @@ tasks:
   export:
     cmds:
       - docker buildx build -o type=docker,dest=- -t shoplanner-backend:latest . > shoplanner.tar
+  # Builds a .deb for Debian 13 (trixie) into dist/. Everything lives in the script; override
+  # VERSION / REVISION / OUT_DIR through the environment.
+  package:deb:
+    cmds:
+      - packaging/deb/build.sh

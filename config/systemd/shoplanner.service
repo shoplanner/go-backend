@@ -6,7 +6,11 @@ Wants=network.target
 [Service]
 Type=simple
 Environment=DB_PATH=%S/shoplanner/shoplanner.db
+Environment=AUTH_PRIVATE_KEY=%S/shoplanner/jwt-private.pem
 
+# Generates AUTH_PRIVATE_KEY on first start. StateDirectory= is already created and owned by
+# the dynamic user at this point, which /etc is not.
+ExecStartPre=/usr/libexec/shoplanner/generate-key.sh
 ExecStart=/usr/bin/shoplanner --config=%E/shoplanner/backend.yml
 Restart=on-failure
 RestartSec=3
