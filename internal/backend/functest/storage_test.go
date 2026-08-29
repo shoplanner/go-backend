@@ -117,15 +117,16 @@ func TestForeignKeysAreEnforced_Desired(t *testing.T) {
 //
 // user/repo/schema.sql has always declared `role int NOT NULL, login varchar(36) NOT NULL
 // UNIQUE, hash text NOT NULL`. Before the migration, favorite/list AutoMigrate reached users
-// through their member associations and rebuilt it with those NOT NULLs dropped and the
-// uniqueness moved out into idx_users_login. CREATE TABLE IF NOT EXISTS cannot undo that, so a
-// database that GORM ever touched keeps the loose shape for good while a fresh one now gets the
-// strict DDL.
+// through their member associations and rebuilt it from GORM's own model, which declared no
+// NOT NULL and — this is the part that cost a production outage — no unique on the login
+// either. Nothing replaced the constraint, so deployed files enforced no uniqueness at all
+// until the sqlc code created idx_users_login on them. CREATE TABLE IF NOT EXISTS cannot undo
+// the rebuild, so those files keep the loose shape for good while a fresh one gets the strict
+// DDL.
 //
-// That divergence is accepted rather than migrated, because the two enforce the same thing: the
-// strict shape is a superset of the loose one, and the repo creates idx_users_login explicitly
-// so uniqueness is indexed either way. What must never diverge is behaviour, which is what the
-// two halves of this test check against the two shapes.
+// That divergence is accepted rather than migrated, because with the index in place the two
+// enforce the same thing. Getting the index onto a file that accumulated duplicates first is
+// what `shoplannerctl db dedup-logins` is for; dedup_test.go covers it.
 func TestUsersTableIsStrictOnAFreshDatabase(t *testing.T) {
 	t.Parallel()
 
@@ -144,8 +145,12 @@ func TestUsersTableIsStrictOnAFreshDatabase(t *testing.T) {
 	requireLoginIsUnique(t, a)
 }
 
-// The loose shape is the one on every deployed disk. Uniqueness has to hold there too, and it
-// does — through idx_users_login rather than through the column.
+// The loose shape is the one on every deployed disk, and uniqueness has to hold there too.
+// It does, but only from the boot that created idx_users_login onwards — loadLegacyDB brings
+// the stack up, which is what puts the index there. What the file arrives with is nothing:
+// see TestDuplicateLoginsStopTheServerFromStarting for the case where that gap was already
+// used, and note that the index line in gorm_v1.sql is an artefact of how that dump was taken
+// rather than something GORM ever wrote.
 func TestUsersTableFromALegacyDatabaseStillEnforcesUniqueLogins(t *testing.T) {
 	t.Parallel()
 

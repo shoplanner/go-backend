@@ -7,3 +7,4 @@ dist/**
 **.exe
 **.db
 **.tar
+.task

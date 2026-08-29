@@ -34,6 +34,72 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (sql.Res
 	)
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users
+WHERE
+    id = ?
+`
+
+// DeleteUser removes an account. Only cmd/dedup-logins uses it, and only for accounts that
+// nothing references.
+func (q *Queries) DeleteUser(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteUser, id)
+	return err
+}
+
+const findDuplicateLogins = `-- name: FindDuplicateLogins :many
+SELECT
+    id, role, login, hash
+FROM
+    users
+WHERE
+    login IN (
+        SELECT
+            login
+        FROM
+            users
+        GROUP BY
+            login
+        HAVING
+            count(*) > 1
+    )
+ORDER BY
+    login,
+    id
+`
+
+// FindDuplicateLogins returns every row whose login is shared with another row. The GORM-era
+// schema had no uniqueness on users.login at all (see the comment on the index in schema.sql),
+// so deployed databases can hold duplicates; this is what the boot-time diagnostic and
+// cmd/dedup-logins report.
+func (q *Queries) FindDuplicateLogins(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, findDuplicateLogins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Role,
+			&i.Login,
+			&i.Hash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAll = `-- name: GetAll :many
 SELECT
     id, role, login, hash
@@ -163,4 +229,24 @@ func (q *Queries) GetLoginsByIDList(ctx context.Context, ids []string) ([]GetLog
 		return nil, err
 	}
 	return items, nil
+}
+
+const setLogin = `-- name: SetLogin :exec
+UPDATE users
+SET
+    login = ?
+WHERE
+    id = ?
+`
+
+type SetLoginParams struct {
+	Login string
+	ID    string
+}
+
+// SetLogin renames a single account. Only cmd/dedup-logins uses it, to break up the duplicate
+// groups above; the API never renames anyone.
+func (q *Queries) SetLogin(ctx context.Context, arg SetLoginParams) error {
+	_, err := q.db.ExecContext(ctx, setLogin, arg.Login, arg.ID)
+	return err
 }

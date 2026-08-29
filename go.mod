@@ -10,6 +10,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/mo v1.13.0
 	github.com/sethvargo/go-envconfig v1.1.0
+	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
@@ -79,7 +80,6 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/sqlc-dev/sqlc v1.28.0 // indirect

@@ -32,6 +32,14 @@ import (
 //
 // Nothing here may depend on a UUID or a timestamp from the dump. Entities are located by
 // login, title or product name.
+//
+// One known flaw in that evidence, kept rather than edited because a frozen file that gets
+// corrected on discovery is not frozen: the dump contains `CREATE UNIQUE INDEX idx_users_login`,
+// which the GORM code never created. It came from the sqlc user repo opening the file while the
+// dump was being taken. Everything else in here is what GORM wrote, but that one line made the
+// suite blind to databases whose users.login was never unique — which is all of them, and which
+// is why the first sqlc build could not boot on the production file. testdata/legacy/
+// gorm_v1_dup_logins.sql and dedup_test.go cover that shape.
 
 const legacyDump = "testdata/legacy/gorm_v1.sql"
 

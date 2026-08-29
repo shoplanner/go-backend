@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
 version: "3"
 
 env:
@@ -10,20 +12,29 @@ env:
 
 tasks:
   generate:
+    sources:
+      - "**/*.go"
+      - exclude: "**.gen.go"
+      - exclude: "**/sqlgen/*"
+    generates:
+      - "**/*.gen.go"
+      - "**/sqlgen/*"
     cmds:
       - go tool github.com/swaggo/swag/cmd/swag init -g cmd/backend/main.go
       - go generate ./...
-      # - go tool github.com/go-swagger/go-swagger/cmd/swagger generate cli
   build:
+    sources:
+      - "**/*.go"
+    generates:
+      - bin/backend
+      - bin/shoplannerctl
     deps: [generate]
     cmds:
-      # The package, not main.go alone: newLogWriter lives in the build-tagged logger_*.go siblings.
       - go build -ldflags="-w -s" -o bin/backend ./cmd/backend
+      - go build -ldflags="-w -s" -o bin/shoplannerctl ./cmd/shoplannerctl
   test:
     cmds:
       - go test ./... -race
-  # Regenerates the committed artifacts under internal/backend/functest/testdata: the schema
-  # snapshot, the golden domain models and the legacy database dump. Review the diff by hand.
   test:update:
     cmds:
       - go test ./internal/backend/functest/ -update
@@ -41,8 +52,6 @@ tasks:
   export:
     cmds:
       - docker buildx build -o type=docker,dest=- -t shoplanner-backend:latest . > shoplanner.tar
-  # Builds a .deb for Debian 13 (trixie) into dist/. Everything lives in the script; override
-  # VERSION / REVISION / OUT_DIR through the environment.
   package:deb:
     cmds:
       - packaging/deb/build.sh

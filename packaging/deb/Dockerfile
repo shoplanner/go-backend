@@ -33,6 +33,12 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -ldflags="-w -s" -o bin/backend ./cmd/backend
 
+# shoplannerctl ships with the server because its db commands are what an operator reaches for
+# when the server will not start, and it has to be on the machine before that happens.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=1 go build -ldflags="-w -s" -o bin/shoplannerctl ./cmd/shoplannerctl
+
 FROM build AS package
 
 # Debian version of the package: @VERSION@-@REVISION@~@SUITE@. Set by packaging/deb/build.sh.
@@ -50,7 +56,7 @@ COPY packaging/deb/ /packaging/
 #     moment DEBIAN_SUITE changes.
 RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
-    libc="$(objdump -T bin/backend | sed -n 's/.*GLIBC_\([0-9.]*\).*/\1/p' | sort -V | tail -1)"; \
+    libc="$(objdump -T bin/backend bin/shoplannerctl | sed -n 's/.*GLIBC_\([0-9.]*\).*/\1/p' | sort -V | tail -1)"; \
     : "${libc:?could not determine the glibc version required by bin/backend}"; \
     version="${VERSION}-${REVISION}~${DEBIAN_SUITE}"; \
     root="/build/shoplanner-backend"; \
@@ -62,6 +68,7 @@ RUN set -eu; \
         "$root/etc/shoplanner" \
         /out; \
     install -m 0755 bin/backend "$root/usr/bin/shoplanner"; \
+    install -m 0755 bin/shoplannerctl "$root/usr/bin/shoplannerctl"; \
     install -m 0755 /packaging/generate-key.sh "$root/usr/libexec/shoplanner/generate-key.sh"; \
     install -m 0644 config/systemd/shoplanner.service "$root/lib/systemd/system/shoplanner.service"; \
     install -m 0644 config/backend.yml "$root/etc/shoplanner/backend.yml"; \

@@ -9,7 +9,7 @@ necessarily installed on PATH — the plain `go` equivalents are listed alongsid
 
 ```bash
 task generate        # swag init (-g cmd/backend/main.go) + go generate ./...
-task build           # runs generate, then: go build -ldflags="-w -s" -o bin/backend ./cmd/backend
+task build           # runs generate, then builds bin/backend and bin/shoplannerctl
 task run             # builds and runs: bin/backend --config config/backend.yml
 task test            # go test ./... -race
 task test:update     # regenerates internal/backend/functest/testdata (see Regression suite)
@@ -40,9 +40,9 @@ Environment overrides: `VERSION`, `REVISION`, `OUT_DIR`, and `PLATFORM` (e.g. `l
 package's `Architecture:` comes from `dpkg --print-architecture` inside the build, so it always matches what was
 actually compiled).
 
-The package ships `/usr/bin/shoplanner`, `config/systemd/shoplanner.service`, `config/backend.yml` as a conffile
-at `/etc/shoplanner/backend.yml`, and `generate-key.sh`. `go generate`/swag are *not* run — `docs/` and every
-`*.gen.go`/`sqlgen/` file is committed.
+The package ships `/usr/bin/shoplanner`, `/usr/bin/shoplannerctl`, `config/systemd/shoplanner.service`,
+`config/backend.yml` as a conffile at `/etc/shoplanner/backend.yml`, and `generate-key.sh`. `go generate`/swag
+are *not* run — `docs/` and every `*.gen.go`/`sqlgen/` file is committed.
 
 The unit uses `DynamicUser=yes`, so the owning UID only exists while the service runs. That is why the ECDSA
 signing key is created by an `ExecStartPre` into `StateDirectory=` (`/var/lib/shoplanner/jwt-private.pem`) rather
@@ -69,6 +69,30 @@ so `python3` is also required for `task generate`:
 
 Both shims depend on env vars exported by `taskfile.yml` (`PROJECT_ROOT`, `GOENUM`, `SQLC_HELPER`), so run generation
 via `task generate`, not bare `go generate`.
+
+## shoplannerctl (`cmd/shoplannerctl`)
+
+The administrative CLI, shipped in the same package as the server because its whole point is to be already on
+the machine when the server will not start. Cobra, one command tree:
+
+```bash
+shoplannerctl db dedup-logins --db /var/lib/shoplanner/shoplanner.db   # interactive
+shoplannerctl db dedup-logins --report   # list only, exits 1 if anything is duplicated
+shoplannerctl db dedup-logins --yes      # keep the account owning the most data, rename the rest
+```
+
+`db …` commands open the SQLite file directly and are meant to run with the service stopped. `dedup-logins`
+resolves the duplicate logins GORM's schema allowed: it lists every login held by more than one account with how
+much data each one owns (`internal/backend/userdedup` counts the rows in every table referencing `users`), asks
+which account keeps it, renames the others to `<login>__dup__<id prefix>` — or deletes them, but only when they
+own nothing — and then creates `idx_users_login`, so a successful run means the server will boot. Everything is
+applied in one transaction after a confirmation, so a refused delete leaves the file untouched.
+
+The HTTP side of the CLI is not wired up (`client.go` is a stub). `swagger generate cli` against `docs/swagger.json`
+does work — it produces a complete cobra client for all 23 endpoints and honours the non-standard `Auth` header —
+but it wants ~126 generated files plus go-openapi/viper as direct dependencies, and its UX is bodies-as-JSON-strings
+(`--opts '{"title":"…"}'`). Not adopted yet; if it is, generate into a directory whose name is a valid import path
+(a dot-prefixed one is not) and add `cli.MakeRootCmd()`'s children under the existing root.
 
 ## Runtime configuration
 
@@ -166,11 +190,22 @@ Two committed artifact sets under `testdata/` are the actual contract:
   so keeping it would mean `-update` quietly replacing the evidence with a re-recording of current behaviour.
   Never hand-edit this file and never reintroduce a generator for it.
 
+  It has one known flaw, deliberately left in place: it contains `CREATE UNIQUE INDEX idx_users_login`, which
+  the GORM code never wrote — the dump was taken through a handle the sqlc user repo had already opened, and
+  the repo creates that index. It is kept because a frozen file corrected on discovery is not frozen.
+
+- `legacy/gorm_v1_dup_logins.sql` is the shape deployed files actually have, and is also frozen: `gorm_v1.sql`
+  with that index line removed and two logins held by two accounts each. GORM's user model declared
+  `Login string` with only a size tag, so `AutoMigrate` rebuilt `users` with **no uniqueness at all**, and
+  production accumulated duplicates. `dedup_test.go` covers what that costs — `user/repo.NewRepo` cannot create
+  the index and the server does not start — and covers `internal/backend/userdedup`, the code behind
+  `shoplannerctl db dedup-logins`.
+
 `TestLegacyAndFreshDatabasesHaveTheSameShape` compares a legacy database against a fresh one column by column
 via `PRAGMA table_info`. `users` is the one accepted exception: GORM's `AutoMigrate` used to rebuild that table
-with its `NOT NULL`s dropped and uniqueness moved into `idx_users_login`, and `CREATE TABLE IF NOT EXISTS`
-cannot undo it — so deployed files keep the loose shape while fresh ones get the strict sqlc DDL. Both enforce
-the same constraints, and the repo creates `idx_users_login` explicitly so uniqueness is indexed either way.
+with its `NOT NULL`s and its inline `UNIQUE` dropped, and `CREATE TABLE IF NOT EXISTS` cannot undo it — so
+deployed files keep the loose shape while fresh ones get the strict sqlc DDL. They enforce the same constraints
+only once `idx_users_login` exists, which the repo creates explicitly at boot.
 
 Known bugs are covered by a pair of tests: `..._CurrentBehaviour` is green and pins today's behaviour, and
 `..._Desired` is `t.Skip`ped with a pointer to its partner. When one gets fixed, the pair flips. Do not "fix" a
