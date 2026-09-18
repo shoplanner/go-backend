@@ -14,11 +14,13 @@ tasks:
   generate:
     sources:
       - "**/*.go"
-      - exclude: "**.gen.go"
+      - exclude: "**/*.gen.go"
       - exclude: "**/sqlgen/*"
     generates:
       - "**/*.gen.go"
       - "**/sqlgen/*"
+      - docs/swagger.yaml
+      - docs/swagger.json
     cmds:
       - go tool github.com/swaggo/swag/cmd/swag init -g cmd/backend/main.go
       - go generate ./...
@@ -38,20 +40,37 @@ tasks:
   test:update:
     cmds:
       - go test ./internal/backend/functest/ -update
+  why:
+    desc: shows what makes a task re-run — glob matches and changed sources
+    cmds:
+      - python tools/task_why.py {{.CLI_ARGS}}
   lint:
+    desc: "run linters"
     cmds:
       - golangci-lint run
   fmt:
+    desc: "format the code"
     cmds:
       - swag fmt
       - go fmt ./...
   run:
+    desc: "run backend service"
     deps: [build]
     cmds:
       - bin/backend --config config/backend.yml
   export:
+    desc: "export docker image"
+    deps:
+      - build
     cmds:
       - docker buildx build -o type=docker,dest=- -t shoplanner-backend:latest . > shoplanner.tar
   package:deb:
+    deps:
+      - build
+    desc: "build deb package"
+    sources:
+      - packaging/*
+    generates:
+      - dist/*
     cmds:
       - packaging/deb/build.sh

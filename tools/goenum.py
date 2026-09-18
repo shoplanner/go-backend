@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-suffix = ".enum.gen.go"
+suffix = ".enum.gen"
 
 subprocess.run(
     [
@@ -18,6 +18,6 @@ subprocess.run(
     stdout=subprocess.DEVNULL,
 )
 
-path = os.environ["GOFILE"] + suffix
+path = os.environ["GOFILE"].removesuffix(".go") + suffix + ".go"
 path = os.path.join(os.getcwd(), path)
 print(f"go-enum: generated {path}")

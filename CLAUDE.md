@@ -14,6 +14,7 @@ task run             # builds and runs: bin/backend --config config/backend.yml
 task test            # go test ./... -race
 task test:update     # regenerates internal/backend/functest/testdata (see Regression suite)
 task lint            # golangci-lint run
+task why -- generate # why that task re-runs: glob matches + changed sources (tools/task_why.py)
 task fmt             # swag fmt + go fmt ./...
 task export          # docker buildx image -> shoplanner.tar
 task package:deb     # packaging/deb/build.sh -> dist/shoplanner-backend_<version>_<arch>.deb
@@ -53,8 +54,13 @@ Code generators are Go tools declared in `go.mod` (`tool` directives) and invoke
 so `python3` is also required for `task generate`:
 
 - `tools/goenum.py` — runs `go-enum` on files carrying `//go:generate python $GOENUM`. Triggered by `// ENUM(...)`
-  comments above an integer type (see `internal/backend/list/model.go`). Output: `*.enum.gen.go.go` — generated,
+  comments above an integer type (see `internal/backend/list/model.go`). Output: `*.enum.gen.go` — generated,
   never edit.
+- `tools/task_why.py` — not a generator: explains a Task target's up-to-date verdict, which `task --status`
+  only reports as a yes/no. It expands the target's `sources`/`generates` globs and prints what each matched,
+  and diffs source hashes against a snapshot in `.task/why/` to name the files that changed (`-n` inspects
+  without updating the snapshot). A `generates` glob matching **nothing** makes Task rerun the target on every
+  invocation regardless of checksums — that is what it flags first.
 - `tools/sqlc_helper.py` — copies `config/sqlc.yaml` into the repo package, runs `sqlc generate`, deletes the copy.
   Triggered by `//go:generate python $SQLC_HELPER` in every repo package; each has `schema.sql` + `query.sql` and
   gets its own `sqlgen/`. The sqlc engine is `sqlite`, which has no `:copyfrom` — bulk inserts are plain `:exec`

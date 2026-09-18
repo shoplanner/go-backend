@@ -8,3 +8,5 @@ dist/**
 **.db
 **.tar
 .task
+.mage
+magefiles/mage_output_file.go
