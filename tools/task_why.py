@@ -13,60 +13,88 @@ import hashlib
 import json
 import os
 import sys
+from typing import TypedDict, cast
 
 CONFIGS = ["taskfile.yml", "mise.toml"]
 SNAPSHOT_DIR = os.path.join(".task", "why")
 
 
-def load_tasks(path):
+class Task(TypedDict):
+    """The three things about a task that decide the verdict."""
+
+    sources: list[str]
+    outputs: list[str]
+    auto: bool
+
+
+def raw_tasks(path: str) -> dict[str, object]:
+    """Reads the config and returns its `tasks` table, untyped."""
     if path.endswith(".toml"):
         import tomllib
 
         with open(path, "rb") as f:
-            raw = tomllib.load(f).get("tasks", {})
-        return {
-            name: {
-                "sources": task.get("sources") or [],
-                "outputs": (
-                    []
-                    if isinstance(task.get("outputs"), dict)
-                    else (task.get("outputs") or [])
-                ),
-                "auto": isinstance(task.get("outputs"), dict),
-            }
-            for name, task in raw.items()
+            doc = cast(dict[str, object], tomllib.load(f))
+    else:
+        import yaml
+
+        with open(path, encoding="utf-8") as f:
+            doc = cast(object, yaml.safe_load(f))
+        if not isinstance(doc, dict):
+            return {}
+        doc = cast(dict[str, object], doc)
+
+    tasks = doc.get("tasks")
+    return cast(dict[str, object], tasks) if isinstance(tasks, dict) else {}
+
+
+def normalize(value: object) -> list[str]:
+    """Flattens a sources/outputs list; go-task spells exclusions `{exclude: glob}`."""
+    if not isinstance(value, list):
+        return []
+    entries: list[str] = []
+    for entry in cast(list[object], value):
+        if isinstance(entry, str):
+            entries.append(entry)
+            continue
+        if isinstance(entry, dict):
+            excluded = cast(dict[str, object], entry).get("exclude")
+            if isinstance(excluded, str):
+                entries.append("!" + excluded)
+    return entries
+
+
+def load_tasks(path: str) -> dict[str, Task]:
+    mise = path.endswith(".toml")
+    outputs_key = "outputs" if mise else "generates"
+
+    tasks: dict[str, Task] = {}
+    for name, entry in raw_tasks(path).items():
+        task = cast(dict[str, object], entry) if isinstance(entry, dict) else {}
+        outputs = task.get(outputs_key)
+        # mise spells "derive the outputs yourself" as `outputs = {auto = true}`.
+        auto = mise and isinstance(outputs, dict)
+        tasks[name] = {
+            "sources": normalize(task.get("sources")),
+            "outputs": [] if auto else normalize(cast(object, outputs)),
+            "auto": auto,
         }
-
-    import yaml
-
-    with open(path, encoding="utf-8") as f:
-        raw = yaml.safe_load(f).get("tasks", {})
-    normalize = lambda entries: [  # noqa: E731
-        "!" + e["exclude"] if isinstance(e, dict) else e for e in entries or []
-    ]
-    return {
-        name: {
-            "sources": normalize((task or {}).get("sources")),
-            "outputs": normalize((task or {}).get("generates")),
-            "auto": False,
-        }
-        for name, task in raw.items()
-    }
+    return tasks
 
 
-def split_globs(entries):
+def split_globs(entries: list[str]) -> tuple[list[str], list[str]]:
     """Splits a sources/outputs list into (include, exclude) patterns."""
-    include, exclude = [], []
-    for entry in entries or []:
+    include: list[str] = []
+    exclude: list[str] = []
+    for entry in entries:
         (exclude if entry.startswith("!") else include).append(entry.lstrip("!"))
     return include, exclude
 
 
-def expand(pattern):
+def expand(pattern: str) -> list[str]:
     return sorted(f for f in glob.glob(pattern, recursive=True) if os.path.isfile(f))
 
 
-def digest(path):
+def digest(path: str) -> str:
     h = hashlib.blake2b(digest_size=16)
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -74,10 +102,13 @@ def digest(path):
     return h.hexdigest()
 
 
-def report_globs(label, entries, empty_is_fatal):
+def report_globs(
+    label: str, entries: list[str], empty_is_fatal: bool
+) -> tuple[list[str], list[str]]:
     include, exclude = split_globs(entries)
     excluded = {f for pattern in exclude for f in expand(pattern)}
-    matched, empty = set(), []
+    matched: set[str] = set()
+    empty: list[str] = []
 
     print(f"  {label}:")
     for pattern in include:
@@ -96,17 +127,18 @@ def report_globs(label, entries, empty_is_fatal):
     return sorted(matched - excluded), empty
 
 
-def snapshot_path(name):
+def snapshot_path(name: str) -> str:
     return os.path.join(SNAPSHOT_DIR, name.replace(":", "_") + ".json")
 
 
-def diff_snapshot(name, files, update):
+def diff_snapshot(name: str, files: list[str], update: bool) -> list[str] | None:
     path = snapshot_path(name)
     current = {f: digest(f) for f in files}
+    previous: dict[str, str] | None = None
     try:
         with open(path, encoding="utf-8") as f:
-            previous = json.load(f)
-   except FileNotFoundError:
+            previous = cast(dict[str, str], json.load(f))
+    except FileNotFoundError:
         previous = None
 
     if update:
@@ -126,7 +158,7 @@ def diff_snapshot(name, files, update):
     return changed
 
 
-def explain(name, task, update):
+def explain(name: str, task: Task, update: bool) -> None:
     print(f"\n{name}")
     if not task["sources"]:
         print("  без sources — запускается всегда")
@@ -134,7 +166,7 @@ def explain(name, task, update):
 
     sources, _ = report_globs("sources", task["sources"], empty_is_fatal=False)
     print(f"    {'':<24} {len(sources):>5} шт после exclude")
-    empty = []
+    empty: list[str] = []
     if task["auto"]:
         print("  outputs: auto — выходы не проверяются, только источники")
     else:
@@ -162,9 +194,9 @@ def explain(name, task, update):
         print("  ВЕРДИКТ: таск актуален")
 
 
-def main():
+def main() -> None:
     argv = sys.argv[1:]
-    config = None
+    config: str | None = None
     if "--config" in argv:
         i = argv.index("--config")
         config = argv[i + 1]

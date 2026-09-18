@@ -1,11 +1,11 @@
 import os
-import subprocess
+
+import sh
 
 suffix = ".enum.gen"
 
-subprocess.run(
+sh.go(
     [
-        "go",
         "tool",
         "github.com/abice/go-enum",
         "--marshal",
@@ -15,7 +15,6 @@ subprocess.run(
         "--output-suffix",
         suffix,
     ],
-    stdout=subprocess.DEVNULL,
 )
 
 path = os.environ["GOFILE"].removesuffix(".go") + suffix + ".go"
